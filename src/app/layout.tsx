@@ -20,6 +20,8 @@ import { ShortcutsHelpHotkey } from "@/components/shell/shortcuts-help-hotkey";
 import { getUnreadCounts } from "@/lib/unread-counts";
 import { getUiMode } from "./settings/ui-actions";
 import { getThemePreference } from "./settings/theme-actions";
+import { AuthShell } from "@/ext/ui/auth-shell"; // ext: auth layout
+import { AUTH_PAGE_HEADER } from "@/ext/ui/auth-paths"; // ext: auth layout
 import "./globals.css";
 
 // Inter is warmer + more readable at small sizes than Geist's precise grotesk.
@@ -60,8 +62,10 @@ export default async function RootLayout({
 }>) {
   // Fetch unread counts so the sidebar can render badges next to sections
   // with new content. Failure is non-fatal — empty counts = no badges.
+  // ext: auth layout — sign-in/register/invite get a bare shell and load no shell data.
+  const isAuthPage = (await headers()).get(AUTH_PAGE_HEADER) === "1";
   let unreadByHref: Record<string, number> = {};
-  try {
+  if (!isAuthPage) try { // ext: auth layout
     const u = await getUnreadCounts();
     unreadByHref = {
       "/news": u.news,
@@ -95,7 +99,7 @@ export default async function RootLayout({
 
   // Read once here rather than in each page that needs a model. Failure
   // is non-fatal: no banner is better than a broken shell.
-  const aiAvailability = await getAiAvailability().catch(() => ({
+  const aiAvailability = await (isAuthPage ? Promise.reject() : getAiAvailability()).catch(() => ({ // ext: auth layout
     available: false,
     hasKey: false,
     hasSubscription: false,
@@ -126,7 +130,9 @@ export default async function RootLayout({
       <body className="h-screen overflow-hidden bg-background text-foreground">
         <ConfirmDialogProvider>
           <QuickAddClientProvider>
-            {isEmbed ? (
+            {isAuthPage ? ( // ext: auth layout
+              <AuthShell>{children}</AuthShell>
+            ) : isEmbed ? (
               // Minimal embedded shell — just the page content. The
               // host (drawer) owns the chrome.
               <main className="h-full overflow-y-auto p-4 md:p-6">
