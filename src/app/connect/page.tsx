@@ -13,6 +13,7 @@ import { INTEGRATIONS, type IntegrationStatus } from "@/lib/integrations";
 import { MCP_TOOL_LIST } from "@/lib/mcp/server";
 import { getConnectionMode } from "../settings/connection-mode-actions";
 import { ConnectList } from "./list";
+import { getSettings as getDfsSettings, isConfigured as isDfsConfigured } from "@/ext/dataforseo/config"; // ext: dataforseo
 
 /**
  * One page that answers "what can I connect, why would I, and how?"
@@ -89,6 +90,8 @@ async function currentStatus(): Promise<Record<string, IntegrationStatus>> {
         .limit(1);
       return rows.length > 0;
     }),
+    // ext: dataforseo — connected only when credentials AND a team cap exist
+    safe("dataforseo", async () => (await isDfsConfigured()) && (await getDfsSettings()).teamCapUsd !== null),
     safe("smtp", async () => Boolean(await getSetting<string>("smtp.host"))),
   ]);
 

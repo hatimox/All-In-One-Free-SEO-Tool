@@ -406,6 +406,28 @@ export default async function SettingsPage() {
         </div>
       </section>
 
+      {/* ext: DataForSEO — full page lives at /settings/dataforseo */}
+      <section id="dataforseo" className="relative overflow-hidden scroll-mt-24 rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
+        <header className="relative border-b border-white/5 px-5 py-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold">
+            <Database className="size-4 text-cyan-300" />
+            DataForSEO
+          </h2>
+        </header>
+        <div className="flex items-center justify-between gap-4 px-5 py-4">
+          <p className="text-xs text-muted-foreground">
+            Exact keyword volumes and backlink data, with credentials, monthly budgets, caching and a spend ledger.
+          </p>
+          <Link
+            href="/settings/dataforseo"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors hover:bg-white/10"
+          >
+            Open
+            <ArrowRight className="size-3.5" />
+          </Link>
+        </div>
+      </section>
+
       {/* Email / SMTP — for scheduled report delivery */}
       <section id="email" className="relative overflow-hidden scroll-mt-24 rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
         <header className="relative border-b border-white/5 px-5 py-4">

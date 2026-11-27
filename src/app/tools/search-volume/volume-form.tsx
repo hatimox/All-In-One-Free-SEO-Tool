@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { Loader2, TrendingUp } from "lucide-react";
 import { estimateVolumes, type EstimateState } from "./actions";
 import { bucketLabel } from "@/lib/search-volume";
+import { SourceBadge } from "@/ext/ui/source-badge"; // ext: dataforseo
 
 const BUCKET_TONE: Record<string, string> = {
   very_high: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",
@@ -77,7 +78,9 @@ export function VolumeForm() {
         <section className="glass-apple relative overflow-hidden rounded-2xl">
           <header className="border-b border-white/[0.06] px-5 py-4">
             <h2 className="text-base font-semibold">
-              Estimates ({state.estimates.length})
+              Estimates ({state.estimates.length}){" "}
+              {/* ext: provenance */}
+              <SourceBadge source="estimate" />
             </h2>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               Bucket = relative monthly volume. Confidence reflects how many

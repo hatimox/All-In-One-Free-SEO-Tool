@@ -178,6 +178,23 @@ export function ProfileMenu({
               <Settings className="size-3.5 text-muted-foreground" />
               AI provider keys
             </Link>
+            {/* ext: dataforseo / mcp */}
+            <Link
+              href="/account/spend"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5"
+            >
+              <Settings className="size-3.5 text-muted-foreground" />
+              My DataForSEO spend
+            </Link>
+            <Link
+              href="/account/mcp-tokens"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5"
+            >
+              <Settings className="size-3.5 text-muted-foreground" />
+              My MCP tokens
+            </Link>
             <Link
               href="/settings#update"
               onClick={() => setOpen(false)}

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Term } from "@/components/ui/term";
 import { researchAction, trackKeyword, type ResearchActionResult } from "./actions";
 import { CountrySelect } from "@/components/country-select";
+import { ExactVolumesPanel } from "@/ext/ui/exact-volumes-panel"; // ext: dataforseo
 
 const sources = [
   { value: "google", label: "Google", icon: Globe, hint: "Autocomplete" },
@@ -232,6 +233,10 @@ export function ResearchForm({
             ))}
           </ul>
         </section>
+      )}
+      {/* ext: optional paid exact volumes for the suggestions above */}
+      {state?.ok && state.suggestions.length > 0 && (
+        <ExactVolumesPanel key={state.seed} initialKeywords={state.suggestions.slice(0, 50).map((s) => s.query)} />
       )}
     </div>
   );

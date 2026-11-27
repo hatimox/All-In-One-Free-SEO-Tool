@@ -184,6 +184,32 @@ export const INTEGRATIONS: Integration[] = [
     setupLabel: "Pick a client to connect",
     group: "publishing",
   },
+  // ext: dataforseo
+  {
+    id: "dataforseo",
+    label: "DataForSEO",
+    tier: "paid",
+    minutes: 5,
+    whatYouGet: [
+      "Exact monthly search volumes, CPC and 12-month trends instead of relative estimates",
+      "Keyword ideas and the keywords any domain ranks for",
+      "Optional backlink summaries, referring domains and gap analysis",
+    ],
+    withoutIt:
+      "Volumes stay directional estimates (or Keyword Planner / Bing figures if connected). Nothing else breaks.",
+    keyUrl: "https://app.dataforseo.com/api-access",
+    keyUrlLabel: "DataForSEO API access",
+    steps: [
+      "Create a DataForSEO account and add a small balance.",
+      "Copy your API login and API password from the API access page.",
+      "Paste them under Settings → DataForSEO and use Test connection.",
+      "Set a monthly team cap: paid lookups stay blocked until one is set.",
+    ],
+    setupHref: "/settings/dataforseo",
+    setupLabel: "Set up DataForSEO",
+    envVar: "DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD",
+    group: "data",
+  },
   {
     id: "smtp",
     label: "Email delivery",
