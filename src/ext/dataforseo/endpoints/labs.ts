@@ -143,3 +143,167 @@ export async function rankedKeywordsLive(p: Market & { target: string; limit: nu
   });
   return { ...mapRankedResult(t), costUsd: t.cost ?? 0 };
 }
+
+// ---------------------------------------------------------------------------
+// Keyword difficulty, intent and domain-level endpoints
+// Docs: https://docs.dataforseo.com/v3/dataforseo_labs/google/bulk_keyword_difficulty/live/
+//       https://docs.dataforseo.com/v3/dataforseo_labs/google/search_intent/live/
+//       https://docs.dataforseo.com/v3/dataforseo_labs/google/domain_rank_overview/live/
+//       https://docs.dataforseo.com/v3/dataforseo_labs/google/relevant_pages/live/
+//       https://docs.dataforseo.com/v3/dataforseo_labs/google/competitors_domain/live/
+// ---------------------------------------------------------------------------
+
+/** bulk_keyword_difficulty and search_intent accept at most 1000 keywords per task. */
+export const BULK_KEYWORDS_MAX = 1000;
+
+export type KeywordDifficultyRow = { keyword: string; difficulty: number | null };
+export type KeywordIntentRow = {
+  keyword: string;
+  intent: string | null;
+  probability: number | null;
+  secondary: { intent: string; probability: number | null }[];
+};
+export type PositionBuckets = { pos1: number; pos2_3: number; pos4_10: number; pos11_20: number; pos21_50: number; pos51_100: number };
+export type DomainOverview = {
+  target: string;
+  organicKeywords: number | null;
+  etv: number | null;
+  positions: PositionBuckets | null;
+};
+export type RelevantPage = { url: string; etv: number | null; keywords: number | null };
+export type DomainCompetitor = { domain: string; intersections: number | null; etv: number | null; keywords: number | null };
+
+const lower = (s: string) => s.trim().toLowerCase();
+
+export function mapDifficultyResult(task: DfsTask<LabsResult<{ keyword?: string; keyword_difficulty?: number | null }>>): KeywordDifficultyRow[] {
+  const out: KeywordDifficultyRow[] = [];
+  for (const res of task.result ?? []) {
+    for (const it of res?.items ?? []) {
+      if (typeof it?.keyword !== "string") continue;
+      out.push({ keyword: lower(it.keyword), difficulty: num(it.keyword_difficulty) });
+    }
+  }
+  return out;
+}
+
+type RawIntent = { label?: string | null; probability?: number | null };
+export function mapIntentResult(
+  task: DfsTask<LabsResult<{ keyword?: string; keyword_intent?: RawIntent | null; secondary_keyword_intents?: RawIntent[] | null }>>,
+): KeywordIntentRow[] {
+  const out: KeywordIntentRow[] = [];
+  for (const res of task.result ?? []) {
+    for (const it of res?.items ?? []) {
+      if (typeof it?.keyword !== "string") continue;
+      out.push({
+        keyword: lower(it.keyword),
+        intent: it.keyword_intent?.label ?? null,
+        probability: num(it.keyword_intent?.probability),
+        secondary: (it.secondary_keyword_intents ?? [])
+          .filter((s): s is RawIntent & { label: string } => typeof s?.label === "string")
+          .map((s) => ({ intent: s.label, probability: num(s.probability) })),
+      });
+    }
+  }
+  return out;
+}
+
+type RawOrganic = Record<string, number | null | undefined> | null | undefined;
+const sum = (o: RawOrganic, keys: string[]) => keys.reduce((a, k) => a + (num(o?.[k]) ?? 0), 0);
+
+export function mapDomainOverviewResult(task: DfsTask<LabsResult<{ metrics?: { organic?: RawOrganic } | null }> & { target?: string }>, target: string): DomainOverview {
+  const items = (task.result ?? []).flatMap((r) => r?.items ?? []);
+  const o = items.find((i) => i?.metrics?.organic)?.metrics?.organic;
+  if (!o) return { target, organicKeywords: null, etv: null, positions: null };
+  return {
+    target,
+    organicKeywords: num(o.count),
+    etv: num(o.etv),
+    positions: {
+      pos1: sum(o, ["pos_1"]),
+      pos2_3: sum(o, ["pos_2_3"]),
+      pos4_10: sum(o, ["pos_4_10"]),
+      pos11_20: sum(o, ["pos_11_20"]),
+      pos21_50: sum(o, ["pos_21_30", "pos_31_40", "pos_41_50"]),
+      pos51_100: sum(o, ["pos_51_60", "pos_61_70", "pos_71_80", "pos_81_90", "pos_91_100"]),
+    },
+  };
+}
+
+export function mapRelevantPagesResult(
+  task: DfsTask<LabsResult<{ page_address?: string; metrics?: { organic?: RawOrganic } | null }>>,
+): { total: number; items: RelevantPage[] } {
+  const items: RelevantPage[] = [];
+  let total = 0;
+  for (const res of task.result ?? []) {
+    total = Math.max(total, res?.total_count ?? 0);
+    for (const it of res?.items ?? []) {
+      if (typeof it?.page_address !== "string") continue;
+      items.push({ url: it.page_address, etv: num(it.metrics?.organic?.etv), keywords: num(it.metrics?.organic?.count) });
+    }
+  }
+  return { total, items };
+}
+
+export function mapCompetitorsResult(
+  task: DfsTask<LabsResult<{ domain?: string; intersections?: number | null; full_domain_metrics?: { organic?: RawOrganic } | null; metrics?: { organic?: RawOrganic } | null }>>,
+): { total: number; items: DomainCompetitor[] } {
+  const items: DomainCompetitor[] = [];
+  let total = 0;
+  for (const res of task.result ?? []) {
+    total = Math.max(total, res?.total_count ?? 0);
+    for (const it of res?.items ?? []) {
+      if (typeof it?.domain !== "string") continue;
+      items.push({
+        domain: it.domain.toLowerCase(),
+        intersections: num(it.intersections),
+        etv: num(it.full_domain_metrics?.organic?.etv),
+        keywords: num(it.full_domain_metrics?.organic?.count),
+      });
+    }
+  }
+  return { total, items };
+}
+
+export async function bulkDifficultyLive(p: Market & { keywords: string[] }) {
+  const t = await dfsLive<LabsResult<{ keyword?: string; keyword_difficulty?: number | null }>>(
+    "/v3/dataforseo_labs/google/bulk_keyword_difficulty/live",
+    { keywords: p.keywords.slice(0, BULK_KEYWORDS_MAX), location_code: p.locationCode, language_code: p.languageCode },
+  );
+  return { rows: mapDifficultyResult(t), costUsd: t.cost ?? 0 };
+}
+
+export async function searchIntentLive(p: { keywords: string[]; languageCode: string }) {
+  // search_intent takes a language only (no location).
+  const t = await dfsLive<Parameters<typeof mapIntentResult>[0] extends DfsTask<infer R> ? R : never>(
+    "/v3/dataforseo_labs/google/search_intent/live",
+    { keywords: p.keywords.slice(0, BULK_KEYWORDS_MAX), language_code: p.languageCode },
+  );
+  return { rows: mapIntentResult(t), costUsd: t.cost ?? 0 };
+}
+
+export async function domainOverviewLive(p: Market & { target: string }) {
+  const t = await dfsLive<Parameters<typeof mapDomainOverviewResult>[0] extends DfsTask<infer R> ? R : never>(
+    "/v3/dataforseo_labs/google/domain_rank_overview/live",
+    { target: p.target, location_code: p.locationCode, language_code: p.languageCode, limit: 1 },
+  );
+  return { overview: mapDomainOverviewResult(t, p.target), costUsd: t.cost ?? 0 };
+}
+
+export async function relevantPagesLive(p: Market & { target: string; limit: number }) {
+  const t = await dfsLive<Parameters<typeof mapRelevantPagesResult>[0] extends DfsTask<infer R> ? R : never>(
+    "/v3/dataforseo_labs/google/relevant_pages/live",
+    {
+      target: p.target, location_code: p.locationCode, language_code: p.languageCode,
+      limit: Math.min(p.limit, 1000), item_types: ["organic"], order_by: ["metrics.organic.etv,desc"],
+    },
+  );
+  return { ...mapRelevantPagesResult(t), costUsd: t.cost ?? 0 };
+}
+
+export async function competitorsDomainLive(p: Market & { target: string; limit: number }) {
+  const t = await dfsLive<Parameters<typeof mapCompetitorsResult>[0] extends DfsTask<infer R> ? R : never>(
+    "/v3/dataforseo_labs/google/competitors_domain/live",
+    { target: p.target, location_code: p.locationCode, language_code: p.languageCode, limit: Math.min(p.limit, 1000), item_types: ["organic"] },
+  );
+  return { ...mapCompetitorsResult(t), costUsd: t.cost ?? 0 };
+}

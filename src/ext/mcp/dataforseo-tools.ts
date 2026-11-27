@@ -11,7 +11,7 @@
  * service layer's guardPaid/guardRead check it again. Budget and permission
  * failures come back as tool errors, never as silently empty data.
  */
-import { getRequest, backlinkGap, keywordIdeas, rankedKeywords, BudgetError } from "../dataforseo/service";
+import { getRequest, backlinkGap, domainCompetitors, domainOverview, keywordDifficulty, keywordIdeas, rankedKeywords, searchIntent, topPages, BudgetError } from "../dataforseo/service";
 import { monthlySpend } from "../dataforseo/budget";
 import { DEFAULT_ROW_LIMIT, microsToUsd } from "../dataforseo/pricing";
 import { getBacklinkOverview } from "../providers/backlinks";
@@ -177,6 +177,52 @@ const SPECS: Spec[] = [
         }),
         fetchTool,
       ),
+  },
+  {
+    base: "dfs_domain_overview",
+    describe: "Organic keyword count, estimated traffic and position distribution of a domain (defaults to the client's own)",
+    props: { target: { type: "string", description: "Domain; defaults to the client's." } },
+    required: [],
+    run: async (clientId, a, allowSpend, fetchTool) =>
+      liveOut(await domainOverview({ clientId, target: a.target ? String(a.target) : undefined, cacheOnly: !allowSpend }), fetchTool),
+  },
+  {
+    base: "dfs_top_pages",
+    describe: "Top pages of a domain by estimated organic traffic (defaults to the client's own domain)",
+    props: {
+      target: { type: "string", description: "Domain; defaults to the client's." },
+      limit: { type: "number", description: `Default ${DEFAULT_ROW_LIMIT}, max 200.` },
+    },
+    required: [],
+    run: async (clientId, a, allowSpend, fetchTool) =>
+      liveOut(await topPages({ clientId, target: a.target ? String(a.target) : undefined, limit: limitOf(a.limit), cacheOnly: !allowSpend }), fetchTool),
+  },
+  {
+    base: "dfs_domain_competitors",
+    describe: "Domains competing for the same keywords as a domain (defaults to the client's own domain)",
+    props: {
+      target: { type: "string", description: "Domain; defaults to the client's." },
+      limit: { type: "number", description: `Default ${DEFAULT_ROW_LIMIT}, max 200.` },
+    },
+    required: [],
+    run: async (clientId, a, allowSpend, fetchTool) =>
+      liveOut(await domainCompetitors({ clientId, target: a.target ? String(a.target) : undefined, limit: limitOf(a.limit), cacheOnly: !allowSpend }), fetchTool),
+  },
+  {
+    base: "dfs_keyword_difficulty",
+    describe: "Keyword difficulty (0-100) for keywords",
+    props: { keywords: { type: "array", items: { type: "string" }, description: "Up to 100 keywords." } },
+    required: ["keywords"],
+    run: async (clientId, a, allowSpend, fetchTool) =>
+      liveOut(await keywordDifficulty({ clientId, keywords: strList(a.keywords).slice(0, 100), cacheOnly: !allowSpend }), fetchTool),
+  },
+  {
+    base: "dfs_search_intent",
+    describe: "Main and secondary search intent for keywords",
+    props: { keywords: { type: "array", items: { type: "string" }, description: "Up to 100 keywords." } },
+    required: ["keywords"],
+    run: async (clientId, a, allowSpend, fetchTool) =>
+      liveOut(await searchIntent({ clientId, keywords: strList(a.keywords).slice(0, 100), cacheOnly: !allowSpend }), fetchTool),
   },
 ];
 

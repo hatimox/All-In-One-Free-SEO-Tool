@@ -16,7 +16,6 @@ import {
   Activity,
   Bot,
   Building,
-  Database,
   ClipboardList,
   FileDown,
   FileSignature,
@@ -163,7 +162,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: "Keywords & ranks",
     items: [
       { href: "/keywords", label: "Tracked keywords", icon: Search, guided: true },
-      { href: "/market-data", label: "Market data", icon: Database }, // ext: dataforseo
+      { href: "/market-data", label: "Keyword research", icon: Search }, // ext: dataforseo
       { href: "/cannibalization", label: "Cannibalization", icon: GitMerge },
       { href: "/cwv", label: "Core Web Vitals", icon: Gauge },
       { href: "/serp-scans", label: "SERP scans archive", icon: Globe },

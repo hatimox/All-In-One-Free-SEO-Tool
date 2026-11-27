@@ -30,6 +30,13 @@ export function resolveMarket(country: string | null | undefined, language: stri
   return { country: c === "UK" ? "GB" : c, language: lang, locationCode: code, languageCode: lang };
 }
 
+/** Reverse of resolveMarket's location code, for reopening a recorded search. */
+export function countryForLocation(code: number | null | undefined): string | null {
+  if (!code) return null;
+  for (const [c, v] of Object.entries({ ...EXTRA_GEO, ...GEO_TARGETS })) if (v === code && c !== "UK") return c;
+  return null;
+}
+
 export async function marketForClient(clientId: number): Promise<Market | null> {
   const row = db.select({ country: clients.country, language: clients.language, url: clients.url })
     .from(clients).where(eq(clients.id, clientId)).get();

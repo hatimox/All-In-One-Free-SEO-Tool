@@ -1,33 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
   lookupBacklinkGap,
   lookupBacklinks,
-  lookupIdeas,
-  lookupKeywords,
-  lookupRankedKeywords,
   type BacklinksOut,
-  type KeywordsOut,
   type LiveOut,
 } from "@/app/market-data/actions";
 import type { GapDomain } from "../dataforseo/endpoints/backlinks";
-import type { KeywordIdea, RankedKeyword } from "../dataforseo/endpoints/labs";
-import { estimateMicros, type Mode } from "../dataforseo/pricing";
+import { estimateMicros } from "../dataforseo/pricing";
 import {
   Access,
   ErrorBox,
   Legend,
-  MetricsTable,
   PaidNote,
-  Sparkline,
   costLabel,
   freeBtn,
   inputCls,
   paidBtn,
-  volumeCost,
 } from "./market-data-shared";
 
 type Common = { clientId: number; access: Access };
@@ -47,192 +38,6 @@ function Miss() {
     <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-200 ring-1 ring-inset ring-amber-500/25">
       Nothing cached for this lookup yet. Fetching it is a paid call; the button above shows the estimate.
     </p>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Keywords
-// ---------------------------------------------------------------------------
-
-export function KeywordsPanel({
-  clientId,
-  access,
-  country,
-  mode,
-}: Common & { country: string; mode: Mode }) {
-  const router = useRouter();
-  const [text, setText] = useState("");
-  const [out, setOut] = useState<KeywordsOut | null>(null);
-  const [busy, start] = useTransition();
-  const count = new Set(text.split(/\r?\n|,/).map((s) => s.trim().toLowerCase()).filter(Boolean)).size;
-  const canPaid = access.canSpend && access.configured;
-
-  const run = (spend: boolean) =>
-    start(async () => {
-      const r = await lookupKeywords({ clientId, keywords: text, spend });
-      if (r.ok && r.status === "pending") {
-        router.push(`/market-data/c/${clientId}/requests/${r.requestId}`);
-        return;
-      }
-      setOut(r);
-    });
-
-  return (
-    <section id="keywords" className={sectionCls}>
-      <Legend />
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={6}
-        placeholder={"one keyword per line\nvegan cookbooks\nmeal planner app"}
-        className={inputCls}
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" disabled={busy || count === 0} className={freeBtn} onClick={() => run(false)}>
-          {busy ? "Looking up…" : "Look up (cached, free)"}
-        </button>
-        {canPaid && (
-          <button type="button" disabled={busy || count === 0} className={paidBtn} onClick={() => run(true)}>
-            Get exact volumes · {costLabel(volumeCost(count, mode))}
-          </button>
-        )}
-      </div>
-      <p className="text-[11px] text-muted-foreground">
-        {mode === "standard"
-          ? "Standard queue: results usually arrive in a few minutes and you will be taken to a pending screen."
-          : "Live mode: results come back immediately at a higher price."}{" "}
-        Keywords already cached are free; the estimate is an upper bound.
-      </p>
-      <PaidNote a={access} />
-      {out && !out.ok && <ErrorBox kind={out.kind} error={out.error} isOwner={access.isOwner} />}
-      {out?.ok && (
-        <MetricsTable items={out.items} clientId={clientId} country={country} canTrack={access.canSpend} />
-      )}
-      {out?.ok && canPaid && out.items.some((i) => i.source !== "dataforseo") && (
-        <p className="text-[11px] text-muted-foreground">
-          Rows not badged DataForSEO come from a fallback source; use the paid button above for exact figures.
-        </p>
-      )}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Ideas
-// ---------------------------------------------------------------------------
-
-type IdeasData = { total: number; items: KeywordIdea[] };
-
-export function IdeasPanel({ clientId, access }: Common) {
-  const [seeds, setSeeds] = useState("");
-  const [variant, setVariant] = useState<"ideas" | "suggestions">("ideas");
-  const [out, setOut] = useState<LiveOut<IdeasData> | null>(null);
-  const [busy, start] = useTransition();
-  const canPaid = access.canSpend && access.configured;
-  const est = estimateMicros(variant === "ideas" ? "labs_keyword_ideas" : "labs_keyword_suggestions", "live", 200);
-  const run = (spend: boolean) => start(async () => setOut(await lookupIdeas({ clientId, seeds, variant, spend })));
-
-  return (
-    <section id="ideas" className={sectionCls}>
-      <Legend />
-      <textarea value={seeds} onChange={(e) => setSeeds(e.target.value)} rows={3} placeholder="seed keywords, one per line" className={inputCls} />
-      <label className="flex items-center gap-2 text-xs">
-        <span className="text-muted-foreground">Type</span>
-        <select value={variant} onChange={(e) => setVariant(e.target.value as "ideas" | "suggestions")} className="h-8 rounded-md border border-white/10 bg-card/60 px-2 text-xs">
-          <option value="ideas">Ideas (related topics, many seeds)</option>
-          <option value="suggestions">Suggestions (phrases containing the first seed)</option>
-        </select>
-      </label>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={busy || !seeds.trim()} className={freeBtn} onClick={() => run(false)}>
-          {busy ? "Looking up…" : "Look up (cached, free)"}
-        </button>
-        {canPaid && (
-          <button type="button" disabled={busy || !seeds.trim()} className={paidBtn} onClick={() => run(true)}>
-            Fetch ideas · {costLabel(est)}
-          </button>
-        )}
-      </div>
-      <PaidNote a={access} />
-      {out && !out.ok && <ErrorBox kind={out.kind} error={out.error} isOwner={access.isOwner} />}
-      {out?.ok && out.status === "cache_miss" && <Miss />}
-      {out?.ok && out.status === "ready" && (
-        <>
-          <Provenance cached={out.cached} fetchedAt={out.fetchedAt} costUsd={out.costUsd} />
-          <Table
-            head={["Keyword", "Volume", "CPC", "Difficulty", "Intent", "12 months"]}
-            rows={out.data.items.map((i) => [
-              i.keyword,
-              num(i.volume),
-              i.cpc !== null ? `$${i.cpc.toFixed(2)}` : "—",
-              num(i.difficulty),
-              i.intent ?? "—",
-              <Sparkline key="s" values={i.trend} />,
-            ])}
-            total={out.data.total}
-          />
-        </>
-      )}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Domain keywords
-// ---------------------------------------------------------------------------
-
-type RankedData = { total: number; items: RankedKeyword[] };
-
-export function DomainPanel({
-  clientId,
-  access,
-  ownDomain,
-  competitors,
-}: Common & { ownDomain: string | null; competitors: string[] }) {
-  const [target, setTarget] = useState(ownDomain ?? "");
-  const [out, setOut] = useState<LiveOut<RankedData> | null>(null);
-  const [busy, start] = useTransition();
-  const canPaid = access.canSpend && access.configured;
-  const est = estimateMicros("labs_ranked_keywords", "live", 200);
-  const run = (spend: boolean) => start(async () => setOut(await lookupRankedKeywords({ clientId, target, spend })));
-  return (
-    <section id="domain" className={sectionCls}>
-      <Legend />
-      <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="example.com" className={`${inputCls} max-w-md`} />
-      {(ownDomain || competitors.length > 0) && (
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-          <span className="text-muted-foreground">Suggestions:</span>
-          {[...(ownDomain ? [ownDomain] : []), ...competitors].map((d) => (
-            <button key={d} type="button" onClick={() => setTarget(d)} className="rounded-full border border-white/10 px-2 py-0.5 hover:bg-white/10">
-              {d}
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={busy || !target.trim()} className={freeBtn} onClick={() => run(false)}>
-          {busy ? "Looking up…" : "Look up (cached, free)"}
-        </button>
-        {canPaid && (
-          <button type="button" disabled={busy || !target.trim()} className={paidBtn} onClick={() => run(true)}>
-            Fetch domain keywords · {costLabel(est)}
-          </button>
-        )}
-      </div>
-      <PaidNote a={access} />
-      {out && !out.ok && <ErrorBox kind={out.kind} error={out.error} isOwner={access.isOwner} />}
-      {out?.ok && out.status === "cache_miss" && <Miss />}
-      {out?.ok && out.status === "ready" && (
-        <>
-          <Provenance cached={out.cached} fetchedAt={out.fetchedAt} costUsd={out.costUsd} />
-          <Table
-            head={["Keyword", "Position", "Volume", "Est. traffic", "Difficulty", "URL"]}
-            rows={out.data.items.map((i) => [i.keyword, num(i.position), num(i.volume), num(i.etv), num(i.difficulty), i.url ?? "—"])}
-            total={out.data.total}
-          />
-        </>
-      )}
-    </section>
   );
 }
 

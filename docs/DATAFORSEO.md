@@ -8,6 +8,7 @@ press a button for.
 
 - **Exact monthly keyword volumes** (Google Ads averages, with CPC, competition and a 12-month trend) instead of the free relative estimate.
 - **Keyword ideas** and **domain keywords** (what a site or competitor ranks for).
+- **Keyword difficulty and search intent**, and a **domain overview** (organic keywords, estimated traffic, position distribution), **top pages** and **competing domains** for any domain. Recent lookups per client are listed from the request history.
 - **Backlink data** (overview, referring domains, gap vs competitors). Off by default, see [Backlinks caveat](#backlinks-api-caveat).
 - A **Market data** page per client (`/market-data`), a "Get exact volumes" block on the search-volume and keyword-research screens, spend pages, and MCP tools.
 
@@ -55,7 +56,12 @@ A repeat lookup inside the window costs nothing and its badge says "cached". Whe
 
 ## Where data appears and what the badges mean
 
-- **Market data** (`/market-data`, then a client): Keywords, Ideas, Domain keywords, Backlinks, Gap.
+- **Keyword research** (`/market-data`, nav "Keyword research"): one search box for a keyword or a domain (a URL, or one word with a dot, is a domain), then pick a client and country. Pages open from the cache and never spend on their own; paid data comes from one button that shows its price.
+  - `/market-data/c/<client>`: search plus recent searches (reopening one is free).
+  - `.../keyword?q=`: volume, SEO difficulty, CPC, competition, intent, 12-month trend, ideas preview (Suggestions, Related, Questions), free "Scan top 10", Track and Export CSV. Button: "Get full data" (only what is not cached). Without DataForSEO, "Estimate difficulty (free)" gives a labelled estimate.
+  - `.../ideas?q=`: full ideas table with volume and difficulty filters, include/exclude words, sorting, bulk Track and Export CSV.
+  - `.../domain?d=`: organic keywords, estimated traffic, top-3 and top-10 positions, position distribution, top pages, top keywords and competitors (each opens its own overview). Button: "Get domain data". Backlinks summary shows from cache when backlinks are enabled.
+  - `.../backlinks`: backlink summary and link gap (tabs).
 - "Get exact volumes" blocks on the search-volume and keyword-research tools.
 - MCP tools (below).
 
@@ -109,6 +115,7 @@ Prices (checked 2026-11-27; re-check before relying on them) from DataForSEO:
 
 - Volume: $0.06 per standard task, $0.09 per live task, up to 1,000 keywords each.
 - Labs (ideas, domain keywords): $0.012 per request + $0.00012 per returned item.
+- Labs difficulty, intent, domain overview, top pages and competing domains: the same Labs rate, $0.012 per request + $0.00012 per keyword/item. Only search intent is named on the pricing page at that rate; the other four are assumed to use it (unconfirmed) and the real cost always comes from the response. Cache TTL is the Labs TTL.
 - Backlinks: $0.024 per request + $0.000036 per row.
 - Account: **$50 minimum top-up** (a prepaid balance, not a monthly fee); new accounts get $1 trial credit.
 

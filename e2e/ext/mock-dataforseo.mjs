@@ -82,6 +82,13 @@ const server = http.createServer((req, res) => {
       f.tasks[0].result = volumeRows(kws.length ? kws : ["seo tool"]);
       return send(res, 200, f);
     }
+    // Labs (difficulty, intent, ideas, domain data): valid but empty live results.
+    if (p.startsWith("/v3/dataforseo_labs/") && p.endsWith("/live")) {
+      return send(res, 200, {
+        version: "0.1.2024", status_code: 20000, status_message: "Ok.", time: "0.1 sec.", cost: 0.012, tasks_count: 1, tasks_error: 0,
+        tasks: [{ id: "00000000-0000-0000-0000-000000000002", status_code: 20000, status_message: "Ok.", time: "0.1 sec.", cost: 0.012, result_count: 1, path: ["v3"], data: {}, result: [{ total_count: 0, items_count: 0, items: [] }] }],
+      });
+    }
     return send(res, 404, { status_code: 40400, status_message: "Not Found." });
   });
 });

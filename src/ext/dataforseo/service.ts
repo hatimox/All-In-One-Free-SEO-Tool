@@ -162,10 +162,19 @@ async function assertCacheTargets(clientId: number, targets: string[], cacheOnly
     const d = backlinksApi.bareDomain(c.url);
     if (d) allowed.add(d);
   }
+  // Domains this same client already requested (any kind with a target) stay readable.
+  for (const r of db.select({ p: extDfsRequests.paramsJson }).from(extDfsRequests).where(eq(extDfsRequests.clientId, clientId)).all()) {
+    try {
+      const t = (JSON.parse(r.p) as { target?: unknown }).target;
+      if (typeof t === "string" && t) allowed.add(backlinksApi.bareDomain(t));
+    } catch {
+      /* ignore malformed params */
+    }
+  }
   for (const t of targets) {
     if (!allowed.has(backlinksApi.bareDomain(t))) {
       throw new Error(
-        `Cached data is only readable for this client's own domain or its competitors; "${t}" is neither. Add it as a competitor first.`,
+        `Cached data is only readable for this client's own domain or its competitors (or a domain it already looked up); "${t}" is neither. Add it as a competitor first.`,
       );
     }
   }
@@ -594,6 +603,89 @@ export async function backlinkGap(opts: ListOpts & { competitors: string[]; targ
     backlinks: true, endpoint: "backlinks_domain_intersection", params: { target, competitors: [...competitors].sort(), limit },
     run: async () => {
       const r = await backlinksApi.domainIntersectionLive({ competitors, exclude: target, limit });
+      return { data: { total: r.total, items: r.items }, costUsd: r.costUsd };
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Keyword difficulty / intent and domain-level Labs endpoints
+// ---------------------------------------------------------------------------
+
+/** Keywords normalised, de-duplicated, sorted (one cache key per set) and capped at the endpoint maximum. */
+function bulkKeywords(raw: string[]): string[] {
+  const k = normalizeKeywords(raw).sort().slice(0, labsApi.BULK_KEYWORDS_MAX);
+  if (k.length === 0) throw new Error("Give at least one keyword.");
+  return k;
+}
+
+/** Difficulty 0-100 per keyword (bulk_keyword_difficulty, <=1000 keywords per call). */
+export async function keywordDifficulty(opts: CommonOpts & { keywords: string[] }) {
+  const m = await resolveMarket(opts.clientId, opts);
+  const keywords = bulkKeywords(opts.keywords);
+  return liveCall({
+    clientId: opts.clientId, kind: "keyword_difficulty", ttl: "labs", units: keywords.length, cacheOnly: opts.cacheOnly,
+    endpoint: "labs_bulk_difficulty", params: { keywords, ...m },
+    run: async () => {
+      const r = await labsApi.bulkDifficultyLive({ keywords, ...m });
+      return { data: { items: r.rows }, costUsd: r.costUsd };
+    },
+  });
+}
+
+/** Main + secondary search intent per keyword (search_intent takes a language, not a location). */
+export async function searchIntent(opts: CommonOpts & { keywords: string[] }) {
+  const m = await resolveMarket(opts.clientId, opts);
+  const keywords = bulkKeywords(opts.keywords);
+  return liveCall({
+    clientId: opts.clientId, kind: "search_intent", ttl: "labs", units: keywords.length, cacheOnly: opts.cacheOnly,
+    endpoint: "labs_search_intent", params: { keywords, languageCode: m.languageCode },
+    run: async () => {
+      const r = await labsApi.searchIntentLive({ keywords, languageCode: m.languageCode });
+      return { data: { items: r.rows }, costUsd: r.costUsd };
+    },
+  });
+}
+
+/** Organic keyword count, estimated traffic and position buckets for a domain (defaults to the client's). */
+export async function domainOverview(opts: CommonOpts & { target?: string }) {
+  const m = await resolveMarket(opts.clientId, opts);
+  const target = await targetOf(opts.clientId, opts.target, opts.cacheOnly);
+  return liveCall({
+    clientId: opts.clientId, kind: "domain_overview", ttl: "labs", units: 1, cacheOnly: opts.cacheOnly,
+    endpoint: "labs_domain_overview", params: { target, ...m },
+    run: async () => {
+      const r = await labsApi.domainOverviewLive({ target, ...m });
+      return { data: r.overview, costUsd: r.costUsd };
+    },
+  });
+}
+
+/** Top pages of a domain by estimated traffic (relevant_pages). */
+export async function topPages(opts: ListOpts & { target?: string }) {
+  const m = await resolveMarket(opts.clientId, opts);
+  const target = await targetOf(opts.clientId, opts.target, opts.cacheOnly);
+  const limit = limitOf(opts);
+  return liveCall({
+    clientId: opts.clientId, kind: "top_pages", ttl: "labs", units: limit, cacheOnly: opts.cacheOnly,
+    endpoint: "labs_relevant_pages", params: { target, ...m, limit },
+    run: async () => {
+      const r = await labsApi.relevantPagesLive({ target, ...m, limit });
+      return { data: { total: r.total, items: r.items }, costUsd: r.costUsd };
+    },
+  });
+}
+
+/** Domains that compete for the same keywords (competitors_domain). */
+export async function domainCompetitors(opts: ListOpts & { target?: string }) {
+  const m = await resolveMarket(opts.clientId, opts);
+  const target = await targetOf(opts.clientId, opts.target, opts.cacheOnly);
+  const limit = limitOf(opts);
+  return liveCall({
+    clientId: opts.clientId, kind: "domain_competitors", ttl: "labs", units: limit, cacheOnly: opts.cacheOnly,
+    endpoint: "labs_competitors_domain", params: { target, ...m, limit },
+    run: async () => {
+      const r = await labsApi.competitorsDomainLive({ target, ...m, limit });
       return { data: { total: r.total, items: r.items }, costUsd: r.costUsd };
     },
   });

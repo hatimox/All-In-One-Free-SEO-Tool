@@ -30,6 +30,10 @@ const svc = vi.hoisted(() => ({
   getRequest: vi.fn(),
 }));
 vi.mock("@/ext/dataforseo/service", () => svc);
+vi.mock("./research", () => ({ loadKeywordView: vi.fn(), loadDomainView: vi.fn(), loadIdeas: vi.fn() }));
+vi.mock("@/lib/serp-scanner", () => ({ scanSerp: vi.fn() }));
+vi.mock("@/app/tools/keyword-difficulty/actions", () => ({ estimateDifficulty: vi.fn() }));
+vi.mock("@/app/keywords/actions", () => ({ trackKeyword: vi.fn() }));
 
 import { BudgetError } from "@/ext/dataforseo/budget";
 import { PaidForbiddenError } from "@/ext/access/paid-guard";

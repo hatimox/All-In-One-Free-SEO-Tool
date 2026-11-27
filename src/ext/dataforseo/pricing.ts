@@ -20,6 +20,11 @@ export type EndpointId =
   | "labs_keyword_ideas"
   | "labs_keyword_suggestions"
   | "labs_ranked_keywords"
+  | "labs_bulk_difficulty"
+  | "labs_search_intent"
+  | "labs_domain_overview"
+  | "labs_relevant_pages"
+  | "labs_competitors_domain"
   | "backlinks_summary"
   | "backlinks_list"
   | "backlinks_referring_domains"
@@ -30,6 +35,15 @@ export type Mode = "live" | "standard";
 
 export const PRICES = {
   search_volume: { standard: 0.06, live: 0.09 }, // USD per task
+  // General Labs (Google) live rate: $0.012 per task + $0.00012 per returned item/keyword.
+  // Source: https://dataforseo.com/pricing/dataforseo-labs/dataforseo-google-api (verified 2026-11-27).
+  // Per endpoint, using this general rate (none is on that page's exceptions list):
+  //   labs_search_intent      (search_intent/live, <=1000 keywords)   - listed on the page at the general rate
+  //   labs_bulk_difficulty    (bulk_keyword_difficulty/live)          - unconfirmed: general rate assumed
+  //   labs_domain_overview    (domain_rank_overview/live)             - unconfirmed: general rate assumed
+  //   labs_relevant_pages     (relevant_pages/live)                   - unconfirmed: general rate assumed
+  //   labs_competitors_domain (competitors_domain/live)               - unconfirmed: general rate assumed
+  // Real cost always comes from the response; this is only the reservation estimate.
   labs: { perRequest: 0.012, perItem: 0.00012 },
   backlinks: { perRequest: 0.024, perRow: 0.000036 },
 } as const;
@@ -54,6 +68,11 @@ export function estimateMicros(endpoint: EndpointId, mode: Mode, units: number):
     case "labs_keyword_ideas":
     case "labs_keyword_suggestions":
     case "labs_ranked_keywords":
+    case "labs_bulk_difficulty":
+    case "labs_search_intent":
+    case "labs_domain_overview":
+    case "labs_relevant_pages":
+    case "labs_competitors_domain":
       usd = PRICES.labs.perRequest + PRICES.labs.perItem * u;
       break;
     case "backlinks_summary":
