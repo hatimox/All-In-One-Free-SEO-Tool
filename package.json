@@ -101,6 +101,7 @@
     "test:watch": "vitest",
     "setup": "node scripts/migrate.cjs && next build && playwright install chromium",
     "db:generate": "drizzle-kit generate",
+    "db:generate:ext": "drizzle-kit generate --config drizzle.ext.config.ts",
     "db:migrate": "node scripts/migrate.cjs",
     "build:release": "node scripts/build-release-zip.mjs",
     "db:studio": "drizzle-kit studio",
@@ -110,6 +111,7 @@
     "test:wp": "tsx scripts/wp-bridge-check.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "test:e2e:ext": "playwright test -c playwright.ext.config.ts",
     "mcp": "tsx scripts/mcp-server.ts",
     "test:mcp": "tsx scripts/mcp-check.ts",
     "test:mcp:http": "tsx scripts/mcp-http-check.ts"

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { VolumeForm } from "./volume-form";
+import { ExactVolumesPanel } from "@/ext/ui/exact-volumes-panel"; // ext: dataforseo
 
 export default function SearchVolumePage() {
   return (
@@ -14,6 +15,8 @@ export default function SearchVolumePage() {
         accent="cyan"
       />
       <VolumeForm />
+      {/* ext: optional paid exact volumes; the estimator above stays labelled as relative */}
+      <ExactVolumesPanel />
     </div>
   );
 }

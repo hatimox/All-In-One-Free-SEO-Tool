@@ -16,6 +16,8 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  // e2e/ext has its own config (playwright.ext.config.ts) and server.
+  testIgnore: "**/ext/**",
   // Sequential. The app is single-user with one SQLite file; parallel
   // specs would fight over the same rows and the same write lock.
   workers: 1,

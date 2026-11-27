@@ -5,6 +5,7 @@ import {
   getGoogleClientCredentials,
   resolveRedirectUri,
 } from "@/lib/google-oauth";
+import { startOAuthState } from "@/ext/access/oauth-state"; // ext: access
 
 export const dynamic = "force-dynamic";
 
@@ -26,20 +27,23 @@ export async function GET(req: NextRequest) {
 
   const popup = req.nextUrl.searchParams.get("popup") === "1";
   const clientId = req.nextUrl.searchParams.get("clientId");
-  // State encodes both popup mode and target clientId so the callback
-  // knows where to store the resulting tokens. Format: "popup|clientId:123"
-  const stateParts: string[] = [];
-  if (popup) stateParts.push("popup");
-  if (clientId && /^\d+$/.test(clientId)) {
-    stateParts.push(`clientId:${clientId}`);
-  }
   const ads = req.nextUrl.searchParams.get("ads") === "1";
-  if (ads) stateParts.push("ads");
+  // ext: access — signed state (user, client, flags, expiry); see oauth-state.ts
+  const started = await startOAuthState({
+    clientId: clientId && /^\d+$/.test(clientId) ? Number(clientId) : null,
+    popup,
+    ads,
+  });
+  if (!started.ok) {
+    return NextResponse.redirect(
+      new URL(`/settings/google?error=${started.error}`, req.nextUrl.origin),
+    );
+  }
   const url = buildAuthUrl({
     scopes: ads ? [GOOGLE_ADS_SCOPE] : undefined,
     clientId: creds.clientId,
     redirectUri,
-    state: stateParts.length > 0 ? stateParts.join("|") : undefined,
+    state: started.state, // ext: access
   });
   return NextResponse.redirect(url);
 }

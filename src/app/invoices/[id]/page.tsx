@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { assertRecordPageAccess } from "@/ext/access/record-scope"; // ext: access
 import Link from "next/link";
 import { eq } from "drizzle-orm";
 
@@ -28,6 +29,7 @@ export default async function InvoiceDetailPage({
   const { id } = await params;
   const invoiceId = Number(id);
   if (!Number.isFinite(invoiceId)) notFound();
+  await assertRecordPageAccess("invoice", invoiceId); // ext: access
 
   const [invoice] = await db
     .select()

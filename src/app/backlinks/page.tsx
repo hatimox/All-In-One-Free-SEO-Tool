@@ -79,16 +79,18 @@ export default async function BacklinksIndexPage({
           Ahrefs / Semrush / Majestic — those crawl the open web with
           dedicated infrastructure and decade-long historical indexes.
           Surface that fact at the top of the tool so the user
-          calibrates expectations: pair with GSC + Ahrefs Webmaster
+          calibrates expectations: pair with Bing WMT + Ahrefs Webmaster
           Tools (also free) for full coverage. */}
       <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-[12px]">
         <div className="font-semibold text-amber-300">
           Honest about what this shows
         </div>
         <p className="mt-1 leading-relaxed text-amber-200/80">
-          Backlink data here comes from Google Search Console (your own
-          site&apos;s confirmed inbound links) plus Common Crawl
-          extraction. It is intentionally narrower than a paid index
+          {/* ext: corrected source copy */}
+          Backlink data here comes from DuckDuckGo searches with a
+          crawl-to-confirm step (each candidate page is fetched and checked
+          for a real link), Bing Webmaster Tools imports, Ahrefs Webmaster
+          Tools CSV imports and links you add by hand. It is intentionally narrower than a paid index
           like Ahrefs or Semrush — building one of those at scale costs
           millions per year. For comprehensive coverage, pair this with{" "}
           <a

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { readFile } from "node:fs/promises";
 import { db } from "@/db/client";
 import { serpScreenshots } from "@/db/schema";
+import { canAccessRecord } from "@/ext/access/record-scope"; // ext: access
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,11 @@ export async function GET(
   const sid = Number(id);
   if (!Number.isFinite(sid) || sid <= 0) {
     return new NextResponse("Bad id", { status: 400 });
+  }
+
+  // ext: access — 404 (not 403) for a screenshot of a client the caller cannot see
+  if (!(await canAccessRecord("screenshot", sid))) {
+    return new NextResponse("Not found", { status: 404 });
   }
 
   const [row] = await db

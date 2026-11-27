@@ -188,6 +188,9 @@ it hosted and effortless, a $5 VPS is the shortest path.
    Default 2 fits in ~1 GB; raise to 4 on a 4+ GB machine.
 5. **Enable Playwright proxy rotation** if you scrape SERPs at volume —
    Settings → Browser → paste proxy list.
+6. **Set `SEO_ENCRYPTION_KEY`** (`openssl rand -base64 32`) so stored credentials,
+   including DataForSEO's, stay readable if the container filesystem is replaced.
+   Back it up with the database. See [DATAFORSEO.md](DATAFORSEO.md).
 
 ---
 

@@ -119,6 +119,8 @@ COPY --from=build --chown=pwuser:pwuser /app/.next/standalone ./
 COPY --from=build --chown=pwuser:pwuser /app/.next/static ./.next/static
 COPY --from=build --chown=pwuser:pwuser /app/public ./public
 COPY --from=build --chown=pwuser:pwuser /app/src/db/migrations ./src/db/migrations
+# ext: extension migrations + runner (see scripts/migrate.cjs)
+COPY --from=build --chown=pwuser:pwuser /app/src/ext/db ./src/ext/db
 COPY --from=build --chown=pwuser:pwuser /app/scripts ./scripts
 COPY --from=build --chown=pwuser:pwuser /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=build --chown=pwuser:pwuser /app/package.json ./package.json

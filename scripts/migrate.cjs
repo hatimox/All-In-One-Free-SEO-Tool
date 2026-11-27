@@ -21,9 +21,19 @@ const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
 
+
+// ext: extension migrations (src/ext/db/migrations → recorded as `ext/<file>`)
+// run after the core ones. Kept in a separate runner so upstream merges of
+// this file stay trivial. Called on every exit path below.
+function runExt() {
+  const p = path.join(__dirname, "..", "src", "ext", "db", "migrate-ext.cjs");
+  if (fs.existsSync(p)) require(p).run(sqlite);
+}
+
 const migrationsDir = path.join(__dirname, "..", "src", "db", "migrations");
 if (!fs.existsSync(migrationsDir)) {
   console.log("[migrate] No migrations directory — skipping.");
+  runExt(); // ext:
   process.exit(0);
 }
 
@@ -74,6 +84,7 @@ if (!filenameMatches && hasCoreTables() && applied.size > 0) {
   console.log(
     `[migrate] detected pre-existing schema — recorded ${files.length} migration filenames as applied.`,
   );
+  runExt(); // ext: ext migrations are never covered by the heuristic above
   sqlite.close();
   process.exit(0);
 }
@@ -198,4 +209,5 @@ for (const f of files) {
 if (count > 0) {
   console.log(`[migrate] ${count} new migration(s) applied.`);
 }
+runExt(); // ext: must run before the connection closes
 sqlite.close();

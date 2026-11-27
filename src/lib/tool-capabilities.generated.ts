@@ -3,12 +3,14 @@
 // graph (see tool-capabilities.derive.ts) and by reading the tool copy out
 // of tools-grid.tsx. tool-capabilities.test.ts fails when this drifts.
 //
-// 226 routes · 100 need AI · 74 use a browser.
+// 232 routes · 101 need AI · 75 use a browser.
 // 91 are /tools/* · 33 need AI · 91 carry copy.
 
 export const TOOL_CAPABILITIES = [
   { route: "/", needsAI: true, aiUsage: "required", usesBrowser: true },
   { route: "/about", needsAI: false, aiUsage: "none", usesBrowser: false },
+  { route: "/account/mcp-tokens", needsAI: false, aiUsage: "none", usesBrowser: false },
+  { route: "/account/spend", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/activity", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/agent", needsAI: true, aiUsage: "required", usesBrowser: true },
   { route: "/agent/autopilot", needsAI: true, aiUsage: "required", usesBrowser: true },
@@ -102,6 +104,9 @@ export const TOOL_CAPABILITIES = [
   { route: "/local-rank", needsAI: true, aiUsage: "required", usesBrowser: true },
   { route: "/local-rank/c/[clientId]", needsAI: false, aiUsage: "none", usesBrowser: true },
   { route: "/login", needsAI: false, aiUsage: "none", usesBrowser: false },
+  { route: "/market-data", needsAI: true, aiUsage: "required", usesBrowser: true },
+  { route: "/market-data/c/[clientId]", needsAI: false, aiUsage: "none", usesBrowser: false },
+  { route: "/market-data/c/[clientId]/requests/[requestId]", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/meta-rewrite", needsAI: true, aiUsage: "required", usesBrowser: true, title: "Meta rewrite batch (low-CTR)", description: "Pulls GSC data, finds your worst CTR vs position. AI rewrites title + meta in 2 variants per page. One-click push to WordPress if connected." },
   { route: "/meta-rewrite/c/[clientId]", needsAI: true, aiUsage: "required", usesBrowser: true },
   { route: "/monitor", needsAI: true, aiUsage: "required", usesBrowser: true },
@@ -126,6 +131,7 @@ export const TOOL_CAPABILITIES = [
   { route: "/settings/ai-learning", needsAI: true, aiUsage: "required", usesBrowser: false },
   { route: "/settings/ai-usage", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/settings/backup", needsAI: false, aiUsage: "none", usesBrowser: false },
+  { route: "/settings/dataforseo", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/settings/edge", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/settings/errors", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/settings/google", needsAI: false, aiUsage: "none", usesBrowser: false },

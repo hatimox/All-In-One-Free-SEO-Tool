@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   aiVisibilityChecks,
@@ -17,6 +17,7 @@ import { getSetting } from "@/lib/settings-store";
 import { logActivity } from "@/lib/activity";
 import { classifySentiment } from "@/lib/ai-sentiment";
 import { guardAction } from "@/lib/action-guard";
+import { assertRecordClientAccess, visibleClientIdsForAction } from "@/ext/access/record-scope"; // ext:
 
 export type RunCheckResult =
   | {
@@ -32,6 +33,7 @@ export async function runAiCheck(keywordId: number): Promise<RunCheckResult> {
   if (!Number.isFinite(keywordId) || keywordId <= 0) {
     return { ok: false, error: "Invalid keyword id" };
   }
+  await assertRecordClientAccess("keyword", keywordId); // ext: the keyword's client must be visible
 
   const [row] = await db
     .select({
@@ -159,10 +161,13 @@ export async function runAllAiChecks(opts?: {
   clientId?: number;
 }): Promise<{ ran: number; errored: number; capped: boolean }> {
   await guardAction("edit", opts?.clientId);
-  const whereClause =
+  const visible = await visibleClientIdsForAction(); // ext: never sweep clients the caller cannot see
+  const whereClause = and(
     typeof opts?.clientId === "number" && Number.isFinite(opts.clientId)
       ? eq(keywords.clientId, opts.clientId)
-      : undefined;
+      : undefined,
+    visible === null ? undefined : inArray(keywords.clientId, visible.length ? visible : [-1]),
+  );
 
   const allKeywords = await db
     .select({ id: keywords.id })
@@ -197,6 +202,7 @@ export async function runAllAiChecks(opts?: {
 export async function deleteVisibilityCheck(id: number): Promise<void> {
   await guardAction("edit");
   if (!Number.isFinite(id) || id <= 0) return;
+  await assertRecordClientAccess("visibilityCheck", id); // ext: the check's keyword's client must be visible
   await db.delete(aiVisibilityChecks).where(eq(aiVisibilityChecks.id, id));
   revalidatePath("/ai-visibility");
 }

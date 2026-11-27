@@ -4,6 +4,8 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { createMcpServer, type McpScope } from "@/lib/mcp/server";
 import { MCP_RATE_LIMIT, rateLimit } from "@/lib/mcp/rate-limit";
 import { getSetting } from "@/lib/settings-store";
+import { authorizeUserToken } from "@/ext/mcp/route-auth"; // ext:
+import { runWithMcpContext, type McpCtx } from "@/ext/mcp/context"; // ext:
 
 /**
  * The MCP endpoint remote clients connect to.
@@ -72,7 +74,7 @@ function originAllowed(req: Request): boolean {
 }
 
 /** What the caller proved they may do, once past every check. */
-type Allowed = { scope: McpScope };
+type Allowed = { scope: McpScope; ctx?: McpCtx }; // ext: ctx
 
 async function authorize(req: Request): Promise<Response | Allowed> {
   if (!originAllowed(req)) {
@@ -80,6 +82,9 @@ async function authorize(req: Request): Promise<Response | Allowed> {
       status: 403,
     });
   }
+
+  const perUser = await authorizeUserToken(req); // ext: per-user tokens first, legacy below
+  if (perUser) return perUser;
 
   const full = (await getSetting<string>("mcp.access_token")) ?? "";
   const readOnly = (await getSetting<string>("mcp.readonly_token")) ?? "";
@@ -163,11 +168,14 @@ async function handle(req: Request): Promise<Response> {
   const server = createMcpServer(
     req.headers.get("user-agent") ?? "remote client",
     allowed.scope,
+    true, // ext: HTTP always runs inside a context; a lost one is denied, never owner-level
   );
   await server.connect(transport);
 
   try {
-    return await transport.handleRequest(req);
+    // ext: legacy tokens are owner-level; per-user tokens carry their own context
+    const ctx: McpCtx = allowed.ctx ?? { kind: "legacy", readOnly: allowed.scope === "read_only" };
+    return await runWithMcpContext(ctx, () => transport.handleRequest(req));
   } finally {
     // The transport is per-request; leaving it connected would leak a
     // server instance for every call the endpoint ever serves.

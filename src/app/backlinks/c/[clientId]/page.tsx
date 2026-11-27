@@ -141,9 +141,9 @@ export default async function PerClientBacklinksPage({
           <EmptyState
             icon={Link2}
             title="No backlinks tracked yet"
-            body="Add some above, connect Google Search Console for auto-pull, or use the Ahrefs WMT CSV import for fuller coverage."
-            primary={{ href: "/settings/google", label: "Connect GSC" }}
-            secondary={{ href: "/backlinks", label: "Ahrefs WMT import" }}
+            body="Add some above, run discovery, import from Bing Webmaster Tools, or use the Ahrefs WMT CSV import for fuller coverage."
+            primary={{ href: "/backlinks", label: "Ahrefs WMT import" }} // ext: GSC does not supply backlinks
+            secondary={{ href: "/connect", label: "Bing Webmaster setup" }}
           />
         </div>
       ) : (

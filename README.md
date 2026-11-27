@@ -72,7 +72,7 @@ A typical SEO professional pays **₹25,000-₹45,000 per month** ($300-$540) fo
 >
 > Two things are **not** free data, and you should know that before you switch:
 >
-> - **Backlink index.** Ahrefs and Semrush operate their own web crawlers, and that index is the single biggest thing you pay them for. This tool uses Search Console's backlink data (your own sites only) plus Common Crawl — useful, but not a substitute for a commercial index. If backlink research is core to your work, keep a paid tool or pair this with the free Ahrefs Webmaster Tools.
+> - **Backlink index.** Ahrefs and Semrush operate their own web crawlers, and that index is the single biggest thing you pay them for. This tool finds backlinks via DuckDuckGo searches confirmed by crawling the linking page, and imports Bing Webmaster Tools and Ahrefs Webmaster Tools exports — useful, but not a substitute for a commercial index. If backlink research is core to your work, keep a paid tool or pair this with the free Ahrefs Webmaster Tools.
 > - **Exact keyword search volumes.** There is no keyless source for real monthly volumes. Out of the box this tool gives you a directional estimate from Trends, autocomplete and SERP signals, and shows you the raw inputs so you can judge it — it does not invent a number and present it as fact. For real numbers you can connect Google's own Keyword Planner, but know the setup before you count on it: it needs a Google Ads account **and** a Google Cloud project approved for **Basic** API access, which requires brand verification. The tier Google approves automatically (**Explorer**) excludes the Keyword Planner services, and a test-level project returns placeholder data. No charge, but not a one-click connect (see Integrations).
 >
 > Everything else, you can stop paying for.
@@ -469,7 +469,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 
 ### 🧩 Use it from Claude, Cursor, or any MCP client
 ✅ **Built-in MCP server** — point Claude Code, Claude Desktop or Cursor at your install and ask questions in plain English against your own data ([setup](docs/mcp-server.md))  
-✅ **29 tools**, backed by the joined history — crawl findings, rank movements, AI citations, Search Console indexing and every change the agent made, in one place. Most SEO MCP servers wrap a single API; "why did this page drop last month" needs all of it  
+✅ **41 tools**, backed by the joined history — crawl findings, rank movements, AI citations, Search Console indexing and every change the agent made, in one place. Most SEO MCP servers wrap a single API; "why did this page drop last month" needs all of it  
 ✅ **It can act, and undo** — `run_agent` respects your autonomy setting exactly as the scheduler does, so at the default nothing is written to a live site  
 ✅ **Numbers arrive with their provenance.** A Search Console average and a browser scrape are different measurements, so movement between them is reported as *not comparable* rather than as a confident "up 6 places" that never happened  
 ✅ **stdio by default** — no port, nothing listening, runs as whoever owns the database file. A remote endpoint (`/api/mcp`, Streamable HTTP) exists for connectors and stays off until you generate a token  
@@ -484,6 +484,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Google Business Profile (free OAuth)  
 ✅ **Google via service account** — connect without a consent screen or a browser, which is what you want on a server  
 ✅ Bing Webmaster Tools  
+✅ **DataForSEO (optional, paid, capped)** — exact keyword volumes, ideas and backlink data with a hard monthly budget, shared cache and per-user access. Nothing is bought without a button press. See [docs/DATAFORSEO.md](docs/DATAFORSEO.md)  
 ✅ WordPress plugin — read/write meta, schema, redirects, alt text, robots.txt  
 ✅ Shopify integration  
 ✅ Webflow integration  

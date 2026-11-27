@@ -598,7 +598,7 @@ const BENTO_TILES: BentoTile[] = [
   {
     href: "/backlinks",
     title: "Backlinks",
-    desc: "GSC + Common Crawl, lost-link recovery.",
+    desc: "Link discovery, Bing/Ahrefs imports, lost-link recovery.", // ext: corrected source copy
     icon: Link2,
     iconColor: "text-emerald-300",
   },

@@ -26,6 +26,7 @@ export const SETTINGS_TABS: readonly PageTab[] = [
     sections: ["general", "ai", "google", "cms", "team", "email"],
   },
   { id: "brand", label: "Brand", sections: ["brand"] },
+  { id: "dataforseo", label: "DataForSEO", sections: ["dataforseo"] }, // ext: dataforseo
   { id: "power", label: "Power", sections: ["notify", "api", "data", "webhooks"] },
   {
     id: "advanced",

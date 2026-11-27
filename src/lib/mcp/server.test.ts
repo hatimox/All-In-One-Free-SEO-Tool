@@ -29,6 +29,12 @@ const WRITERS = new Set([
   "reply_to_review",
   "log_client_research",
   "update_task",
+  // ext: DataForSEO tools that can spend
+  "dfs_keyword_metrics_fetch",
+  "dfs_keyword_ideas_fetch",
+  "dfs_ranked_keywords_fetch",
+  "dfs_backlinks_overview_fetch",
+  "dfs_backlink_gap_fetch",
 ]);
 
 describe("tool annotations", () => {

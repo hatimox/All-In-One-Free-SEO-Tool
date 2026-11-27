@@ -35,6 +35,7 @@ describe("every integration is set up to be followed", () => {
       "/settings/google",
       "/tools/bing",
       "/clients",
+      "/settings/dataforseo", // ext: dataforseo
     ];
     for (const i of INTEGRATIONS) {
       expect(known, `${i.id} points somewhere unverified`).toContain(

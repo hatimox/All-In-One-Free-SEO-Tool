@@ -15,6 +15,7 @@ import {
   siteFactsFor,
 } from "@/lib/apply-task-templates";
 import { guardAction } from "@/lib/action-guard";
+import { grantCreatorMembership } from "@/ext/access/creator-membership"; // ext: access
 import { isSafeBranch, normalizeGithubRepo } from "@/lib/github-repo";
 
 const niches = ["local", "ecommerce", "saas", "blog", "services"] as const;
@@ -161,6 +162,7 @@ export async function createClient(
       socialLinks: Object.keys(socialLinks).length > 0 ? socialLinks : null,
     })
     .returning({ id: clients.id });
+  await grantCreatorMembership(row.id); // ext: access
 
   // One read of the live site, shared by both template passes, so the
   // checklist does not open with work this site finished years ago.
