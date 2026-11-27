@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { assertRecordPageAccess } from "@/ext/access/record-scope"; // ext: access
 import Link from "next/link";
 import { eq, desc } from "drizzle-orm";
 
@@ -17,6 +18,7 @@ export default async function KeywordScreenshotsPage({
   const { id } = await params;
   const keywordId = Number(id);
   if (!Number.isFinite(keywordId)) notFound();
+  await assertRecordPageAccess("keyword", keywordId); // ext: access
 
   const [keyword] = await db
     .select({

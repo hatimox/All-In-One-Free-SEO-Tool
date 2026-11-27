@@ -7,6 +7,7 @@ import { keywords } from "@/db/schema";
 import { researchKeywords } from "@/lib/keyword-research";
 import { normaliseCountry } from "@/lib/countries";
 import { guardAction } from "@/lib/action-guard";
+import { assertRecordClientAccess } from "@/ext/access/record-scope"; // ext: access
 
 export type ResearchActionResult =
   | {
@@ -107,6 +108,7 @@ export async function trackKeyword(formData: FormData) {
 
 export async function untrackKeyword(keywordId: number) {
   await guardAction("edit");
+  await assertRecordClientAccess("keyword", keywordId); // ext: access
   if (!Number.isFinite(keywordId) || keywordId <= 0) return;
   await db.delete(keywords).where(eq(keywords.id, keywordId));
   revalidatePath("/keywords");

@@ -15,6 +15,7 @@ import { getApiKey, getOllamaUrl } from "@/lib/api-keys";
 import { MODEL_PRESETS, defaultModelFor } from "@/lib/ai-model-presets";
 import type { ActiveProvider } from "@/lib/api-keys";
 import { checkRateLimit, clientKey } from "@/lib/rate-limit";
+import { guardOwnerWhenAccounts } from "@/ext/access/owner-guard"; // ext: access
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -199,6 +200,8 @@ async function probeOllama(url: string): Promise<ProbeResult> {
 }
 
 export async function POST(req: Request) {
+  const denied = await guardOwnerWhenAccounts(); // ext: access
+  if (denied) return denied; // ext: access
   // Rate limit: every probe hits a real upstream provider API and may
   // count toward the user's quota. 12 tests per minute per IP is plenty
   // for legitimate use (clicking Test once per provider you're trying)

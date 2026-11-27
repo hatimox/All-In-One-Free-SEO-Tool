@@ -11,6 +11,7 @@ import { encrypt } from "@/lib/crypto";
 import { logActivity } from "@/lib/activity";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
+import { authoriseOAuthCallback, verifyOAuthState } from "@/ext/access/oauth-state"; // ext: access
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +19,11 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const error = req.nextUrl.searchParams.get("error");
   const state = req.nextUrl.searchParams.get("state") ?? "";
-  const isPopup = state.includes("popup");
-  const clientIdMatch = state.match(/clientId:(\d+)/);
-  const targetClientId = clientIdMatch ? Number(clientIdMatch[1]) : null;
+  // ext: access — state is HMAC-signed and bound to the user who started it.
+  const verified = verifyOAuthState(state);
+  const isPopup = verified.ok && verified.payload.popup;
+  const targetClientId = verified.ok ? verified.payload.clientId : null;
+  const isAds = verified.ok && verified.payload.ads;
 
   const settingsUrl = new URL("/settings/google", req.nextUrl.origin);
 
@@ -41,6 +44,17 @@ export async function GET(req: NextRequest) {
       }</p><script>(function(){try{if(window.opener){window.opener.postMessage(${safe},"*");}}catch(e){}setTimeout(function(){window.close();},400);})();</script></body></html>`,
       { status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
     );
+  }
+
+  // ext: access — reject forged/expired state or an unauthorised user before
+  // doing anything with the code.
+  const rejection = verified.ok
+    ? await authoriseOAuthCallback(verified.payload)
+    : { ok: false as const, error: `invalid-state-${verified.reason}` };
+  if (!rejection.ok) {
+    if (isPopup) return popupResponse({ ok: false, error: rejection.error });
+    settingsUrl.searchParams.set("error", rejection.error);
+    return NextResponse.redirect(settingsUrl);
   }
 
   if (error) {
@@ -91,7 +105,7 @@ export async function GET(req: NextRequest) {
 
   // Google Ads has its own sign-in: keep its token apart from the Search
   // Console one, and leave that connection as it was.
-  if (state.split("|").includes("ads")) {
+  if (isAds) { // ext: access
     await setSetting("google_ads.refresh_token", encrypt(tokens.refresh_token));
     await logActivity({
       kind: "google.connected",

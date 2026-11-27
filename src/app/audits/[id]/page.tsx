@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { assertRecordPageAccess } from "@/ext/access/record-scope"; // ext: access
 import Link from "next/link";
 import { buildDevTicket } from "@/lib/dev-ticket";
 import { DevTicketButton } from "./dev-ticket-button";
@@ -106,6 +107,7 @@ export default async function AuditDetailPage({
   const { id } = await params;
   const auditId = Number(id);
   if (!Number.isFinite(auditId)) notFound();
+  await assertRecordPageAccess("audit", auditId); // ext: access
 
   // `stalledSeconds` is computed by SQLite rather than with Date.now()
   // in the component. Two reasons: React 19's purity rule correctly

@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { backlinks } from "@/db/schema";
 import { logActivity } from "@/lib/activity";
 import { guardAction } from "@/lib/action-guard";
+import { assertRecordClientAccess } from "@/ext/access/record-scope"; // ext: access
 
 const backlinkInput = z.object({
   clientId: z.coerce.number().int().positive(),
@@ -78,6 +79,7 @@ export async function setBacklinkStatus(
   status: "active" | "lost" | "disavow",
 ) {
   await guardAction("edit");
+  await assertRecordClientAccess("backlink", backlinkId); // ext: access
   await db
     .update(backlinks)
     .set({ status, updatedAt: new Date() })
@@ -87,6 +89,7 @@ export async function setBacklinkStatus(
 
 export async function deleteBacklink(backlinkId: number) {
   await guardAction("edit");
+  await assertRecordClientAccess("backlink", backlinkId); // ext: access
   await db.delete(backlinks).where(eq(backlinks.id, backlinkId));
   revalidatePath("/backlinks");
 }

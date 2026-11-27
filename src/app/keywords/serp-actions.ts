@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { clients, keywordRankings, keywords, serpScans } from "@/db/schema";
 import { scanSerp } from "@/lib/serp-scanner";
 import { guardAction } from "@/lib/action-guard";
+import { assertRecordClientAccess } from "@/ext/access/record-scope"; // ext: access
 
 export type RunSerpScanResult =
   | { ok: true; id: number; aiOverviewPresent: boolean; topResults: number }
@@ -15,6 +16,7 @@ export async function runSerpScan(
   keywordId: number,
 ): Promise<RunSerpScanResult> {
   await guardAction("edit");
+  await assertRecordClientAccess("keyword", keywordId); // ext: access
   const [k] = await db
     .select()
     .from(keywords)

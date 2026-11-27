@@ -18,6 +18,7 @@ import { prefetchGscSnapshot, resolveRank } from "@/lib/rank-resolve";
 import type { GscRankLookup } from "@/lib/rank-gsc";
 import { notify } from "@/lib/notifier";
 import { guardAction } from "@/lib/action-guard";
+import { assertRecordClientAccess, visibleClientIdsForAction } from "@/ext/access/record-scope"; // ext: access
 import type { RankSource } from "@/lib/serp/sources";
 
 function screenshotsRoot(): string {
@@ -58,6 +59,7 @@ export async function checkRankAction(
   snapshot?: GscRankLookup | null,
 ): Promise<CheckRankResult> {
   await guardAction("edit");
+  await assertRecordClientAccess("keyword", keywordId); // ext: access
   if (!Number.isFinite(keywordId) || keywordId <= 0) {
     return { ok: false, error: "Invalid keyword id" };
   }
@@ -267,6 +269,7 @@ export type BatchRankSummary = {
  */
 export async function checkAllRanksAction(): Promise<BatchRankSummary> {
   await guardAction("edit");
+  const visible = await visibleClientIdsForAction(); // ext: access
   const all = await db
     .select({
       id: keywords.id,
@@ -277,7 +280,8 @@ export async function checkAllRanksAction(): Promise<BatchRankSummary> {
       country: keywords.country,
     })
     .from(keywords)
-    .leftJoin(clients, eq(keywords.clientId, clients.id));
+    .leftJoin(clients, eq(keywords.clientId, clients.id))
+    .where(visible ? inArray(keywords.clientId, visible.length ? visible : [-1]) : undefined); // ext: access
 
   const valid = all.filter((k) => k.clientUrl && Number.isFinite(k.id));
   const summary: BatchRankSummary = {
@@ -324,6 +328,7 @@ export async function checkAllRanksAction(): Promise<BatchRankSummary> {
 export async function clearRankHistoryAction(keywordIds: number[]) {
   await guardAction("edit");
   if (keywordIds.length === 0) return;
+  for (const id of keywordIds) await assertRecordClientAccess("keyword", id); // ext: access
   await db
     .delete(keywordRankings)
     .where(inArray(keywordRankings.keywordId, keywordIds));
