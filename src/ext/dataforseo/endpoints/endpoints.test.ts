@@ -3,6 +3,7 @@ import { fixture } from "../test-utils";
 import { mapVolumeResult } from "./volume";
 import { mapIdeasResult, mapRankedResult } from "./labs";
 import { bareDomain, mapBacklinks, mapIntersection, mapReferringDomains, mapSummary } from "./backlinks";
+import { mapCompetitorsResult, mapDifficultyResult, mapDomainOverviewResult, mapIntentResult, mapRelevantPagesResult } from "./labs";
 import { mapUserData } from "./account";
 
 const task = (f: string) => fixture(f).tasks[0];
@@ -40,5 +41,24 @@ describe("response mappers", () => {
   });
   it("strips scheme, www and path from domains", () => {
     expect(bareDomain("https://www.Example.com/a?b")).toBe("example.com");
+  });
+  it("maps difficulty, intent, overview, pages and competitors", () => {
+    expect(mapDifficultyResult(task("labs_bulk_difficulty.json"))).toEqual([
+      { keyword: "seo tool", difficulty: 71 }, { keyword: "free rank tracker", difficulty: 38 }, { keyword: "obscure term", difficulty: null },
+    ]);
+    const intent = mapIntentResult(task("labs_search_intent.json"));
+    expect(intent[0]).toEqual({ keyword: "buy seo tool", intent: "transactional", probability: 0.82, secondary: [{ intent: "commercial", probability: 0.15 }] });
+    expect(intent[1].secondary).toEqual([]);
+    expect(mapDomainOverviewResult(task("labs_domain_overview.json"), "example.com")).toEqual({
+      target: "example.com", organicKeywords: 290, etv: 1234.5,
+      positions: { pos1: 10, pos2_3: 20, pos4_10: 50, pos11_20: 80, pos21_50: 90, pos51_100: 40 },
+    });
+    expect(mapDomainOverviewResult({ result: null } as never, "x.test")).toEqual({ target: "x.test", organicKeywords: null, etv: null, positions: null });
+    const pages = mapRelevantPagesResult(task("labs_relevant_pages.json"));
+    expect(pages.total).toBe(300);
+    expect(pages.items[0]).toEqual({ url: "https://example.com/widget", etv: 512.3, keywords: 40 });
+    const comp = mapCompetitorsResult(task("labs_competitors_domain.json"));
+    expect(comp.items[0]).toEqual({ domain: "rival.test", intersections: 120, etv: 8000.5, keywords: 900 });
+    expect(comp.items[1].etv).toBeNull();
   });
 });

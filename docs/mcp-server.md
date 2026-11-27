@@ -175,6 +175,17 @@ a pair:
 | `dfs_ranked_keywords` | `dfs_ranked_keywords_fetch` |
 | `dfs_backlinks_overview` | `dfs_backlinks_overview_fetch` |
 | `dfs_backlink_gap` | `dfs_backlink_gap_fetch` |
+| `dfs_domain_overview` | `dfs_domain_overview_fetch` |
+| `dfs_top_pages` | `dfs_top_pages_fetch` |
+| `dfs_domain_competitors` | `dfs_domain_competitors_fetch` |
+| `dfs_keyword_difficulty` | `dfs_keyword_difficulty_fetch` |
+| `dfs_search_intent` | `dfs_search_intent_fetch` |
+
+`dfs_domain_overview` returns organic keyword count, estimated traffic and
+position buckets (1, 2-3, 4-10, 11-20, 21-50, 51-100); `dfs_top_pages` and
+`dfs_domain_competitors` default to the client's own domain. Cache-only reads of
+a domain other than the client's own or its competitors work only for domains
+that client already looked up.
 
 Plus two free read-only tools: `dfs_request_status` (status and data of an
 earlier request, for example a keyword-volume task waiting in the standard

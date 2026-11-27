@@ -35,6 +35,11 @@ const WRITERS = new Set([
   "dfs_ranked_keywords_fetch",
   "dfs_backlinks_overview_fetch",
   "dfs_backlink_gap_fetch",
+  "dfs_domain_overview_fetch",
+  "dfs_top_pages_fetch",
+  "dfs_domain_competitors_fetch",
+  "dfs_keyword_difficulty_fetch",
+  "dfs_search_intent_fetch",
 ]);
 
 describe("tool annotations", () => {

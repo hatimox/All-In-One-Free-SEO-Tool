@@ -8,6 +8,7 @@ press a button for.
 
 - **Exact monthly keyword volumes** (Google Ads averages, with CPC, competition and a 12-month trend) instead of the free relative estimate.
 - **Keyword ideas** and **domain keywords** (what a site or competitor ranks for).
+- **Keyword difficulty and search intent**, and a **domain overview** (organic keywords, estimated traffic, position distribution), **top pages** and **competing domains** for any domain. Recent lookups per client are listed from the request history.
 - **Backlink data** (overview, referring domains, gap vs competitors). Off by default, see [Backlinks caveat](#backlinks-api-caveat).
 - A **Market data** page per client (`/market-data`), a "Get exact volumes" block on the search-volume and keyword-research screens, spend pages, and MCP tools.
 
@@ -109,6 +110,7 @@ Prices (checked 2026-11-27; re-check before relying on them) from DataForSEO:
 
 - Volume: $0.06 per standard task, $0.09 per live task, up to 1,000 keywords each.
 - Labs (ideas, domain keywords): $0.012 per request + $0.00012 per returned item.
+- Labs difficulty, intent, domain overview, top pages and competing domains: the same Labs rate, $0.012 per request + $0.00012 per keyword/item. Only search intent is named on the pricing page at that rate; the other four are assumed to use it (unconfirmed) and the real cost always comes from the response. Cache TTL is the Labs TTL.
 - Backlinks: $0.024 per request + $0.000036 per row.
 - Account: **$50 minimum top-up** (a prepaid balance, not a monthly fee); new accounts get $1 trial credit.
 
