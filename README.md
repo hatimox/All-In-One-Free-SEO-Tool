@@ -484,6 +484,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Google Business Profile (free OAuth)  
 ✅ **Google via service account** — connect without a consent screen or a browser, which is what you want on a server  
 ✅ Bing Webmaster Tools  
+✅ **DataForSEO (optional, paid, capped)** — exact keyword volumes, ideas and backlink data with a hard monthly budget, shared cache and per-user access. Nothing is bought without a button press. See [docs/DATAFORSEO.md](docs/DATAFORSEO.md)  
 ✅ WordPress plugin — read/write meta, schema, redirects, alt text, robots.txt  
 ✅ Shopify integration  
 ✅ Webflow integration  

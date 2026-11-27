@@ -3,6 +3,29 @@
 Each release has full notes under [docs/releases](docs/releases/). This
 file is the short version.
 
+## Unreleased
+
+Optional DataForSEO data, with a budget you set and per-user access.
+[Setup and costs](docs/DATAFORSEO.md)
+
+- **💹 Exact keyword volumes, ideas and backlinks from DataForSEO.** Off
+  until an owner saves credentials and a monthly team cap; until then every
+  paid call is refused and the free estimates keep working. Results are
+  cached and shared across clients (volumes 30 days, the rest 14), so the
+  same keyword is never bought twice, and volume lookups are batched up
+  to 1,000 keywords per task.
+- **🚦 Spend caps and alerts.** Team cap, optional per-user caps, a
+  per-request maximum, and 80% / 100% alerts in the app and by email to
+  the owner when SMTP is set. Automations never spend unless you allow it.
+- **🏷️ Every number says where it came from.** DataForSEO, estimate,
+  Search Console and the rest each carry a badge.
+- **🔑 Per-user MCP tokens.** Each person connects as themselves and sees
+  only their clients; DataForSEO tools are cache-only unless you call the
+  `_fetch` variant with `allowSpend`.
+- **🔒 Fixed: members could act on clients they were not assigned to.**
+  Keyword, backlink and rank actions now check the client, not just the
+  role.
+
 ## v0.10.3 — 2026-11-20
 
 Everything the first real installation found.
