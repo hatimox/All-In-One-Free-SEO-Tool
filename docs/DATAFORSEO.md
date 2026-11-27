@@ -56,7 +56,12 @@ A repeat lookup inside the window costs nothing and its badge says "cached". Whe
 
 ## Where data appears and what the badges mean
 
-- **Market data** (`/market-data`, then a client): Keywords, Ideas, Domain keywords, Backlinks, Gap.
+- **Keyword research** (`/market-data`, nav "Keyword research"): one search box for a keyword or a domain (a URL, or one word with a dot, is a domain), then pick a client and country. Pages open from the cache and never spend on their own; paid data comes from one button that shows its price.
+  - `/market-data/c/<client>`: search plus recent searches (reopening one is free).
+  - `.../keyword?q=`: volume, SEO difficulty, CPC, competition, intent, 12-month trend, ideas preview (Suggestions, Related, Questions), free "Scan top 10", Track and Export CSV. Button: "Get full data" (only what is not cached). Without DataForSEO, "Estimate difficulty (free)" gives a labelled estimate.
+  - `.../ideas?q=`: full ideas table with volume and difficulty filters, include/exclude words, sorting, bulk Track and Export CSV.
+  - `.../domain?d=`: organic keywords, estimated traffic, top-3 and top-10 positions, position distribution, top pages, top keywords and competitors (each opens its own overview). Button: "Get domain data". Backlinks summary shows from cache when backlinks are enabled.
+  - `.../backlinks`: backlink summary and link gap (tabs).
 - "Get exact volumes" blocks on the search-volume and keyword-research tools.
 - MCP tools (below).
 

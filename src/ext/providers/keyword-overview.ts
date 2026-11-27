@@ -39,6 +39,8 @@ export type KeywordOverview = {
   keyword: string;
   metrics: KeywordMetric | null;
   metricsStatus: "ready" | "pending";
+  /** Set while a standard-queue volume task is pending. */
+  requestId?: number;
   difficulty: DifficultyInfo;
   intent: IntentInfo;
 };
@@ -79,7 +81,7 @@ export async function getKeywordOverview(opts: {
   if (!(await isConfigured())) {
     const why = "DataForSEO is not configured";
     return {
-      keyword, metrics, metricsStatus: metricsRes.status,
+      keyword, metrics, metricsStatus: metricsRes.status, requestId: metricsRes.requestId,
       difficulty: { ...difficulty, fallbackReason: why },
       intent: { ...intent, fallbackReason: why },
     };
@@ -116,5 +118,5 @@ export async function getKeywordOverview(opts: {
     intent = { ...intent, fallbackReason: `DataForSEO unavailable: ${(e as Error).message}` };
   }
 
-  return { keyword, metrics, metricsStatus: metricsRes.status, difficulty, intent };
+  return { keyword, metrics, metricsStatus: metricsRes.status, requestId: metricsRes.requestId, difficulty, intent };
 }

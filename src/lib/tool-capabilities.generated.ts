@@ -3,8 +3,8 @@
 // graph (see tool-capabilities.derive.ts) and by reading the tool copy out
 // of tools-grid.tsx. tool-capabilities.test.ts fails when this drifts.
 //
-// 232 routes · 101 need AI · 75 use a browser.
-// 91 are /tools/* · 33 need AI · 91 carry copy.
+// 236 routes · 108 need AI · 82 use a browser.
+// 91 are /tools/* · 34 need AI · 91 carry copy.
 
 export const TOOL_CAPABILITIES = [
   { route: "/", needsAI: true, aiUsage: "required", usesBrowser: true },
@@ -105,8 +105,12 @@ export const TOOL_CAPABILITIES = [
   { route: "/local-rank/c/[clientId]", needsAI: false, aiUsage: "none", usesBrowser: true },
   { route: "/login", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/market-data", needsAI: true, aiUsage: "required", usesBrowser: true },
-  { route: "/market-data/c/[clientId]", needsAI: false, aiUsage: "none", usesBrowser: false },
-  { route: "/market-data/c/[clientId]/requests/[requestId]", needsAI: false, aiUsage: "none", usesBrowser: false },
+  { route: "/market-data/c/[clientId]", needsAI: true, aiUsage: "required", usesBrowser: true },
+  { route: "/market-data/c/[clientId]/backlinks", needsAI: true, aiUsage: "required", usesBrowser: true },
+  { route: "/market-data/c/[clientId]/domain", needsAI: true, aiUsage: "required", usesBrowser: true },
+  { route: "/market-data/c/[clientId]/ideas", needsAI: true, aiUsage: "required", usesBrowser: true },
+  { route: "/market-data/c/[clientId]/keyword", needsAI: true, aiUsage: "required", usesBrowser: true },
+  { route: "/market-data/c/[clientId]/requests/[requestId]", needsAI: true, aiUsage: "required", usesBrowser: true },
   { route: "/meta-rewrite", needsAI: true, aiUsage: "required", usesBrowser: true, title: "Meta rewrite batch (low-CTR)", description: "Pulls GSC data, finds your worst CTR vs position. AI rewrites title + meta in 2 variants per page. One-click push to WordPress if connected." },
   { route: "/meta-rewrite/c/[clientId]", needsAI: true, aiUsage: "required", usesBrowser: true },
   { route: "/monitor", needsAI: true, aiUsage: "required", usesBrowser: true },
@@ -221,7 +225,7 @@ export const TOOL_CAPABILITIES = [
   { route: "/tools/schema", needsAI: true, aiUsage: "required", usesBrowser: false, title: "Schema markup generator", description: "AI generates valid JSON-LD for Article, LocalBusiness, FAQ, Product, Recipe, Event. Paste your URL — we extract the rest." },
   { route: "/tools/schema-validate", needsAI: false, aiUsage: "none", usesBrowser: false, title: "Schema validator (live URL)", description: "Fetches the URL, extracts every JSON-LD block, validates required fields by type. Complements the AI schema generator." },
   { route: "/tools/screenshot-import", needsAI: true, aiUsage: "required", usesBrowser: false, title: "Screenshot import — paid-tool data parser", description: "Drag a screenshot from Ahrefs / Semrush / GSC / GA4. AI vision extracts the structured data so you can stop paying for tools you only use occasionally." },
-  { route: "/tools/search-volume", needsAI: false, aiUsage: "none", usesBrowser: false, title: "Search-volume estimator", description: "Free directional volume bucket. Combines Google Trends, Google + Bing autocomplete, SERP characteristics. No paid keyword DB." },
+  { route: "/tools/search-volume", needsAI: true, aiUsage: "required", usesBrowser: true, title: "Search-volume estimator", description: "Free directional volume bucket. Combines Google Trends, Google + Bing autocomplete, SERP characteristics. No paid keyword DB." },
   { route: "/tools/security", needsAI: false, aiUsage: "none", usesBrowser: false, title: "Security headers + SSL grade", description: "Mozilla Observatory + SSL Labs. Free, no key. Surface fix-it actions for security ranking signals." },
   { route: "/tools/serp-features", needsAI: false, aiUsage: "none", usesBrowser: true, title: "SERP feature tracker (AIO + FS + PAA)", description: "Capture SERP snapshots over time — AI Overview citations, featured snippets, PAA questions. Surfaces snippet-takeover opportunities." },
   { route: "/tools/serp-volatility", needsAI: false, aiUsage: "none", usesBrowser: false, title: "SERP volatility tracker", description: "Day-over-day position shifts across every tracked keyword. Volatility score spikes during algorithm updates — pause big content moves when stormy." },
