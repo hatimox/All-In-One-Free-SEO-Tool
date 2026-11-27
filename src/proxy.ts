@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "@/lib/secure-compare";
 import { SESSION_COOKIE, verifySession } from "@/lib/session-token";
 import { expectedToken } from "@/lib/password-token";
+import { AUTH_PAGE_HEADER, isAuthPagePath } from "@/ext/ui/auth-paths"; // ext: auth layout
 
 /**
  * The auth gate. Three modes, in order of precedence:
@@ -189,6 +190,9 @@ function applyEmbedHeader(req: NextRequest): Headers {
   if (req.nextUrl.pathname.startsWith("/embed/")) {
     requestHeaders.set("x-embed", "1");
   }
+  // ext: auth layout — only the proxy decides; drop any client-sent value.
+  requestHeaders.delete(AUTH_PAGE_HEADER);
+  if (isAuthPagePath(req.nextUrl.pathname)) requestHeaders.set(AUTH_PAGE_HEADER, "1");
   return requestHeaders;
 }
 
