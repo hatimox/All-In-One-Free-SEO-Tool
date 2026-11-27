@@ -4,8 +4,10 @@
  *   -> Google Keyword Planner (connected)
  *   -> Bing Webmaster (key set)
  *   -> free estimate (Trends + autocomplete buckets)
- * A BudgetError / forbidden / DataForSEO failure falls to the next provider
- * with `fallbackReason` set. While a paid standard-queue task is pending the
+ * With allowSpend false, a failure falls to the next provider with
+ * `fallbackReason` set. With allowSpend true, BudgetError, PaidForbiddenError
+ * and account errors (auth / insufficient funds) or a possibly-charged call
+ * are thrown so callers show them; other outages still fall back. While a paid standard-queue task is pending the
  * result status is "pending": fallback values are returned but marked
  * `pending: true` so a UI can show them as provisional.
  */
@@ -15,7 +17,10 @@ import { estimateBulk, type VolumeBucket } from "@/lib/search-volume";
 import { normalizeKeywords } from "../dataforseo/cache";
 import { isConfigured } from "../dataforseo/config";
 import { marketForClient, resolveMarket } from "../dataforseo/market";
+import { BudgetError } from "../dataforseo/budget";
 import { getVolumes } from "../dataforseo/service";
+import { DataForSeoError, isAuthOrFundsError } from "../dataforseo/client";
+import { PaidForbiddenError } from "../access/paid-guard";
 import type { DataSource } from "./sources";
 
 export type MetricMarket = {
@@ -62,12 +67,18 @@ export async function getKeywordMetrics(opts: {
   const reasons = new Map<string, string>();
   const setReason = (r: string) => remaining().forEach((k) => reasons.set(k, r));
 
-  const mk =
-    opts.market?.locationCode && opts.market.languageCode
-      ? { country: opts.market.country ?? null, language: opts.market.language ?? opts.market.languageCode, locationCode: opts.market.locationCode, languageCode: opts.market.languageCode }
-      : opts.market?.country
-        ? resolveMarket(opts.market.country, opts.market.language)
-        : await marketForClient(opts.clientId);
+  const explicit = opts.market?.locationCode && opts.market.languageCode;
+  const mk = explicit
+    ? { country: opts.market!.country ?? null, language: opts.market!.language ?? opts.market!.languageCode!, locationCode: opts.market!.locationCode!, languageCode: opts.market!.languageCode! }
+    : opts.market?.country
+      ? resolveMarket(opts.market.country, opts.market.language)
+      : await marketForClient(opts.clientId);
+  // A country the caller asked for must never silently become the client's market (and be paid for).
+  if (!explicit && opts.market?.country && !mk) {
+    throw new Error(
+      `Unsupported country "${opts.market.country}": no DataForSEO location is known for it. Use a supported ISO country code or pass location_code and language_code.`,
+    );
+  }
   const country = (mk?.country ?? opts.market?.country ?? "US") as string;
   const language = mk?.language ?? opts.market?.language ?? "en";
 
@@ -97,6 +108,16 @@ export async function getKeywordMetrics(opts: {
         setReason("DataForSEO result not cached and spending was not allowed");
       }
     } catch (e) {
+      // When the caller asked to spend, budget / permission / account (auth, funds) failures
+      // and possibly-charged calls must be loud, not hidden behind a free fallback.
+      if (
+        opts.allowSpend &&
+        (e instanceof BudgetError ||
+          e instanceof PaidForbiddenError ||
+          (e instanceof DataForSeoError && (isAuthOrFundsError(e) || e.ambiguous)))
+      ) {
+        throw e;
+      }
       setReason(`DataForSEO unavailable: ${(e as Error).message}`);
     }
   }

@@ -7,14 +7,21 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { MCP_RATE_LIMIT, rateLimit } from "@/lib/mcp/rate-limit";
 import type { McpCtx } from "./context";
+import { perUserMcpEnabled } from "./per-user-switch";
 import { TOKEN_PREFIX, resolveToken } from "./tokens";
 
 export type UserAuth = { scope: "full" | "read_only"; ctx: McpCtx };
 
-export function authorizeUserToken(req: Request): Response | UserAuth | null {
+export async function authorizeUserToken(req: Request): Promise<Response | UserAuth | null> {
   const header = req.headers.get("authorization") ?? "";
   const bearer = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (!bearer.startsWith(TOKEN_PREFIX)) return null;
+  if (!(await perUserMcpEnabled())) {
+    return NextResponse.json(
+      { error: "Remote MCP is off for personal tokens. The workspace owner can turn it on at /account/mcp-tokens." },
+      { status: 503 },
+    );
+  }
   let t;
   try {
     t = resolveToken(bearer);

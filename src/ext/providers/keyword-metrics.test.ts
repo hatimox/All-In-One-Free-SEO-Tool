@@ -10,21 +10,25 @@ const estimateBulk = vi.fn();
 
 vi.mock("../dataforseo/service", () => ({ getVolumes: (...a: unknown[]) => getVolumes(...a) }));
 vi.mock("../dataforseo/config", () => ({ isConfigured: () => isConfigured() }));
+const resolveMarket = vi.fn();
 vi.mock("../dataforseo/market", () => ({
   marketForClient: async () => ({ country: "US", language: "en", locationCode: 2840, languageCode: "en" }),
-  resolveMarket: () => ({ country: "US", language: "en", locationCode: 2840, languageCode: "en" }),
+  resolveMarket: (...a: unknown[]) => resolveMarket(...a),
 }));
 vi.mock("@/lib/google-ads", () => ({ getAdsStatus: () => adsStatus(), keywordMetrics: (...a: unknown[]) => adsMetrics(...a) }));
 vi.mock("@/lib/bing-webmaster", () => ({ getBingApiKey: () => bingKey(), getBingKeywordVolumes: (...a: unknown[]) => bingVolumes(...a) }));
 vi.mock("@/lib/search-volume", () => ({ estimateBulk: (...a: unknown[]) => estimateBulk(...a) }));
 
 import { BudgetError } from "../dataforseo/budget";
+import { DataForSeoError } from "../dataforseo/client";
+import { PaidForbiddenError } from "../access/paid-guard";
 import { getKeywordMetrics } from "./keyword-metrics";
 
 const base = { clientId: 1, keywords: ["alpha"], allowSpend: true };
 
 beforeEach(() => {
   for (const m of [getVolumes, isConfigured, adsStatus, adsMetrics, bingKey, bingVolumes, estimateBulk]) m.mockReset();
+  resolveMarket.mockReset().mockReturnValue({ country: "US", language: "en", locationCode: 2840, languageCode: "en" });
   isConfigured.mockResolvedValue(false);
   adsStatus.mockResolvedValue({ ready: false });
   bingKey.mockResolvedValue(null);
@@ -48,14 +52,44 @@ describe("getKeywordMetrics fallback chain", () => {
     expect(r.items[0]).toMatchObject({ source: "dataforseo", volume: 500, cached: true });
   });
 
-  it("budget error -> next provider (ads) with fallbackReason", async () => {
+  it("when spending was asked for, budget / forbidden / funds / auth / ambiguous errors are surfaced, not hidden", async () => {
     isConfigured.mockResolvedValue(true);
-    getVolumes.mockRejectedValue(new BudgetError("Team DataForSEO budget reached", "team", 5, 5));
     adsStatus.mockResolvedValue({ ready: true });
     adsMetrics.mockResolvedValue([{ text: "alpha", volume: 900, competitionIndex: 40, highBid: 1.5 }]);
-    const r = await getKeywordMetrics(base);
+    const errs = [
+      new BudgetError("Team DataForSEO budget reached", "team", 5, 5),
+      new PaidForbiddenError("nope"),
+      new DataForSeoError("DataForSEO balance is empty", 40210, false),
+      new DataForSeoError("bad creds", 40100, false),
+      new DataForSeoError("timed out", null, true, true),
+    ];
+    for (const e of errs) {
+      getVolumes.mockRejectedValueOnce(e);
+      await expect(getKeywordMetrics(base)).rejects.toBe(e);
+    }
+  });
+
+  it("cache-only reads and plain outages still fall back with fallbackReason", async () => {
+    isConfigured.mockResolvedValue(true);
+    adsStatus.mockResolvedValue({ ready: true });
+    adsMetrics.mockResolvedValue([{ text: "alpha", volume: 900, competitionIndex: 40, highBid: 1.5 }]);
+    getVolumes.mockRejectedValueOnce(new BudgetError("Team DataForSEO budget reached", "team", 5, 5));
+    const r = await getKeywordMetrics({ ...base, allowSpend: false });
     expect(r.items[0]).toMatchObject({ source: "google_ads", volume: 900 });
     expect(r.items[0].fallbackReason).toMatch(/budget reached/);
+    getVolumes.mockRejectedValueOnce(new DataForSeoError("DataForSEO error 50000: boom", 50000, true));
+    const r2 = await getKeywordMetrics(base);
+    expect(r2.items[0].fallbackReason).toMatch(/boom/);
+  });
+
+  it("an unsupported country override fails clearly instead of using the client's market", async () => {
+    isConfigured.mockResolvedValue(true);
+    resolveMarket.mockReturnValue(null);
+    await expect(getKeywordMetrics({ ...base, market: { country: "ZZ" } })).rejects.toThrow(/Unsupported country "ZZ"/);
+    expect(getVolumes).not.toHaveBeenCalled();
+    // explicit codes bypass the lookup
+    getVolumes.mockResolvedValue({ status: "ready", requestId: null, cached: 0, paid: 0, costUsd: 0, rows: [] });
+    await expect(getKeywordMetrics({ ...base, market: { country: "ZZ", locationCode: 1, languageCode: "xx" } })).resolves.toBeTruthy();
   });
 
   it("ads ready without DFS -> google_ads; ads failing -> bing", async () => {

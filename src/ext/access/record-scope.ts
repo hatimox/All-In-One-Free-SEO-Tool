@@ -20,6 +20,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
+  aiVisibilityChecks,
   audits,
   backlinks,
   invoices,
@@ -37,6 +38,7 @@ export type RecordKind =
   | "keyword"
   | "backlink"
   | "ranking"
+  | "visibilityCheck"
   | "serpScan"
   | "screenshot"
   | "audit"
@@ -78,6 +80,7 @@ export function recordClientId(kind: RecordKind, id: number): number | null {
     ranking: [keywordRankings, keywordRankings.id, keywordRankings.keywordId],
     serpScan: [serpScans, serpScans.id, serpScans.keywordId],
     screenshot: [serpScreenshots, serpScreenshots.id, serpScreenshots.keywordId],
+    visibilityCheck: [aiVisibilityChecks, aiVisibilityChecks.id, aiVisibilityChecks.keywordId],
   } as const;
   const [table, idCol, kwCol] = child[kind as keyof typeof child];
   const row = db

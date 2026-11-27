@@ -159,3 +159,13 @@ describe("token to context", () => {
 });
 
 vi.mock("next/headers", () => ({ headers: async () => { throw new Error("no scope"); }, cookies: async () => ({ get: () => undefined }) }));
+
+describe("missing MCP context", () => {
+  it("stdio keeps the owner-level fallback; an HTTP-created server denies", async () => {
+    const { resolveToolContext, McpContextMissingError } = await import("./context");
+    expect(resolveToolContext(false)).toEqual({ kind: "legacy", readOnly: false });
+    expect(() => resolveToolContext(true)).toThrow(McpContextMissingError);
+    const inside = runWithMcpContext(user(member, "member"), () => resolveToolContext(true));
+    expect(inside).toMatchObject({ kind: "user", userId: member });
+  });
+});

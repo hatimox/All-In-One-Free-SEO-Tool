@@ -19,6 +19,11 @@ export class EncryptionUnavailableError extends Error {
 
 export function encryptStrict(plaintext: string): string {
   if (!plaintext) throw new Error("encryptStrict: empty value");
+  // core encrypt() passes anything that looks encrypted straight through, which
+  // would store this value unencrypted.
+  if (isEncrypted(plaintext)) {
+    throw new Error("Refusing to store a value that starts with the reserved prefix \"enc:v1:\" (it would be saved unencrypted).");
+  }
   const out = encrypt(plaintext);
   if (!isEncrypted(out)) throw new EncryptionUnavailableError();
   return out;

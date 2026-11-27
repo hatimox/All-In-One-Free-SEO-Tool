@@ -140,15 +140,15 @@ export function SpendSettingsForm(p: SettingsFormProps) {
         </label>
         <label className="space-y-1 text-xs">
           <span className="text-muted-foreground">Keep volumes (days)</span>
-          <input name="ttlVolume" type="number" min={0} defaultValue={p.ttlDays.volume} className={input} />
+          <input name="ttlVolume" type="number" min={1} defaultValue={p.ttlDays.volume} className={input} />
         </label>
         <label className="space-y-1 text-xs">
           <span className="text-muted-foreground">Keep ideas / domain keywords (days)</span>
-          <input name="ttlLabs" type="number" min={0} defaultValue={p.ttlDays.labs} className={input} />
+          <input name="ttlLabs" type="number" min={1} defaultValue={p.ttlDays.labs} className={input} />
         </label>
         <label className="space-y-1 text-xs">
           <span className="text-muted-foreground">Keep backlink data (days)</span>
-          <input name="ttlBacklinks" type="number" min={0} defaultValue={p.ttlDays.backlinks} className={input} />
+          <input name="ttlBacklinks" type="number" min={1} defaultValue={p.ttlDays.backlinks} className={input} />
         </label>
       </div>
 

@@ -19,6 +19,9 @@ describe("encryptStrict", () => {
   it("rejects empty input", () => {
     expect(() => encryptStrict("")).toThrow();
   });
+  it("rejects a plaintext that already starts with the reserved enc:v1: prefix", () => {
+    expect(() => encryptStrict("enc:v1:looks-encrypted")).toThrow(/reserved prefix/);
+  });
 });
 
 describe("encryptStrict with a working key", () => {

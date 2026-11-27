@@ -14,6 +14,14 @@ const path = require("node:path");
 function run(sqlite) {
   const dir = path.join(__dirname, "migrations");
   if (!fs.existsSync(dir)) return 0;
+  // The core runner may have skipped creating this table (no core migrations dir).
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      hash TEXT NOT NULL,
+      created_at INTEGER
+    );
+  `);
   const applied = new Set(
     sqlite.prepare("SELECT hash FROM __drizzle_migrations").all().map((r) => r.hash),
   );

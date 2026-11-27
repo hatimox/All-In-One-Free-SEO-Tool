@@ -13,7 +13,7 @@
  */
 import { getRequest, backlinkGap, keywordIdeas, rankedKeywords, BudgetError } from "../dataforseo/service";
 import { monthlySpend } from "../dataforseo/budget";
-import { microsToUsd } from "../dataforseo/pricing";
+import { DEFAULT_ROW_LIMIT, microsToUsd } from "../dataforseo/pricing";
 import { getBacklinkOverview } from "../providers/backlinks";
 import { getKeywordMetrics } from "../providers/keyword-metrics";
 import { PaidForbiddenError } from "../access/paid-guard";
@@ -47,7 +47,11 @@ function clientOf(a: Args): number | McpToolResult {
 
 const strList = (v: unknown): string[] =>
   Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
-const limitOf = (v: unknown) => Math.max(1, Math.min(Math.trunc(Number(v) || 50), 200));
+/** Undefined lets the service apply its own default (shared with the UI, so cache keys match). */
+const limitOf = (v: unknown): number | undefined => {
+  const n = Math.trunc(Number(v));
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 200) : undefined;
+};
 
 type LiveLike = { status: "cache_miss" } | { status: "ready"; requestId: number; data: unknown; cached: boolean; fetchedAt: Date; costUsd: number };
 
@@ -112,7 +116,7 @@ const SPECS: Spec[] = [
     props: {
       seeds: { type: "array", items: { type: "string" } },
       variant: { type: "string", enum: ["ideas", "suggestions"] },
-      limit: { type: "number", description: "Default 50, max 200." },
+      limit: { type: "number", description: `Default ${DEFAULT_ROW_LIMIT}, max 200.` },
     },
     required: ["seeds"],
     run: async (clientId, a, allowSpend, fetchTool) =>
@@ -129,7 +133,7 @@ const SPECS: Spec[] = [
     describe: "Keywords a domain ranks for (defaults to the client's own domain)",
     props: {
       target: { type: "string", description: "Domain; defaults to the client's." },
-      limit: { type: "number", description: "Default 50, max 200." },
+      limit: { type: "number", description: `Default ${DEFAULT_ROW_LIMIT}, max 200.` },
     },
     required: [],
     run: async (clientId, a, allowSpend, fetchTool) =>
@@ -162,7 +166,7 @@ const SPECS: Spec[] = [
     props: {
       competitors: { type: "array", items: { type: "string" } },
       target: { type: "string" },
-      limit: { type: "number", description: "Default 50, max 200." },
+      limit: { type: "number", description: `Default ${DEFAULT_ROW_LIMIT}, max 200.` },
     },
     required: ["competitors"],
     run: async (clientId, a, allowSpend, fetchTool) =>

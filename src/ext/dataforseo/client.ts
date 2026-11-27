@@ -44,11 +44,17 @@ export class DataForSeoError extends Error {
   /** DataForSEO status code (or HTTP status when no envelope), null for network errors. */
   readonly code: number | null;
   readonly retryable: boolean;
-  constructor(message: string, code: number | null, retryable = false) {
+  /**
+   * True when the request may have reached DataForSEO (network error or
+   * timeout after sending), so a paid call may already have been billed.
+   */
+  readonly ambiguous: boolean;
+  constructor(message: string, code: number | null, retryable = false, ambiguous = false) {
     super(message);
     this.name = "DataForSeoError";
     this.code = code;
     this.retryable = retryable;
+    this.ambiguous = ambiguous;
   }
 }
 
@@ -68,6 +74,13 @@ export function redact(text: string, creds?: Credentials | null): string {
   out = out.replace(/Basic\s+[A-Za-z0-9+/=]{8,}/g, "Basic [redacted]");
   return out;
 }
+
+/**
+ * Codes meaning "rejected before any work/charge": the only ones a POST
+ * (paid live / task_post) may be retried on. Network errors and timeouts
+ * are NOT in this set: DataForSEO may already have billed the call.
+ */
+const NOT_CHARGED_CODES = new Set([40202, 40209, 429]);
 
 const RETRY_CODES = new Set([40202, 40209, 50000, 50301, 50303, 50304, 50401, 50402]);
 
@@ -133,6 +146,7 @@ async function once<R>(
       redact(aborted ? "DataForSEO request timed out." : `DataForSEO network error: ${(err as Error)?.message}`, creds),
       null,
       true,
+      true,
     );
   } finally {
     clearTimeout(timer);
@@ -153,7 +167,7 @@ async function once<R>(
   }
   if (json.status_code !== 20000) {
     const e = describe(json.status_code, redact(json.status_message ?? "", creds));
-    throw new DataForSeoError(redact(e.message, creds), e.code, e.retryable);
+    throw new DataForSeoError(redact(e.message, creds), e.code, e.retryable, e.ambiguous);
   }
   return json;
 }
@@ -178,10 +192,14 @@ export async function dfsRequest<R = unknown>(
         return await once<R>(method, path, body, creds);
       } catch (err) {
         const e = err as DataForSeoError;
-        if (!(e instanceof DataForSeoError) || !e.retryable || attempt >= opts.maxRetries) {
+        const retryOk =
+          e instanceof DataForSeoError &&
+          e.retryable &&
+          (method === "GET" || (e.code !== null && NOT_CHARGED_CODES.has(e.code)));
+        if (!retryOk || attempt >= opts.maxRetries) {
           throw e instanceof DataForSeoError
             ? e
-            : new DataForSeoError(redact((e as Error)?.message ?? "unknown error", creds), null, false);
+            : new DataForSeoError(redact((e as Error)?.message ?? "unknown error", creds), null, false, true);
         }
         attempt++;
         await sleep(opts.retryBaseMs * 2 ** (attempt - 1));
@@ -208,4 +226,9 @@ export async function dfsLive<R = unknown>(path: string, task: Record<string, un
   const t = env.tasks?.[0];
   assertTaskOk(t);
   return t as DfsTask<R>;
+}
+
+/** Bad credentials or empty balance: an account problem, not a problem with the task. */
+export function isAuthOrFundsError(e: unknown): boolean {
+  return e instanceof DataForSeoError && e.code !== null && [401, 40100, 402, 40200, 40210].includes(e.code);
 }

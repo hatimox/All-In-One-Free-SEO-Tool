@@ -25,6 +25,9 @@ export type TtlDays = { volume: number; labs: number; backlinks: number };
 
 export const DEFAULT_TTL_DAYS: TtlDays = { volume: 30, labs: 14, backlinks: 14 };
 export const DEFAULT_REQUEST_MAX_USD = 1;
+/** TTL 0 would disable caching (every read pays again), so one day is the floor. */
+export const MIN_TTL_DAYS = 1;
+const ttlDay = (v: unknown, dflt: number) => Math.max(MIN_TTL_DAYS, posNum(v) ?? dflt);
 
 export function apiBase(): string {
   return (process.env.DATAFORSEO_API_BASE || "https://api.dataforseo.com").replace(
@@ -120,9 +123,9 @@ export async function getSettings(): Promise<DfsSettings> {
     userCaps,
     requestMaxUsd: posNum(reqMax) ?? DEFAULT_REQUEST_MAX_USD,
     ttlDays: {
-      volume: posNum(ttl?.volume) ?? DEFAULT_TTL_DAYS.volume,
-      labs: posNum(ttl?.labs) ?? DEFAULT_TTL_DAYS.labs,
-      backlinks: posNum(ttl?.backlinks) ?? DEFAULT_TTL_DAYS.backlinks,
+      volume: ttlDay(ttl?.volume, DEFAULT_TTL_DAYS.volume),
+      labs: ttlDay(ttl?.labs, DEFAULT_TTL_DAYS.labs),
+      backlinks: ttlDay(ttl?.backlinks, DEFAULT_TTL_DAYS.backlinks),
     },
     defaultMode: mode === "live" ? "live" : "standard",
     automationsMaySpend: auto === true || auto === "true",
@@ -138,7 +141,13 @@ export async function saveSettings(patch: Partial<DfsSettings>): Promise<void> {
   if (patch.userCaps) await setSetting(K("dataforseo.user_caps"), patch.userCaps);
   if (patch.requestMaxUsd !== undefined)
     await setSetting(K("dataforseo.request_max_usd"), patch.requestMaxUsd);
-  if (patch.ttlDays) await setSetting(K("dataforseo.ttl_days"), patch.ttlDays);
+  if (patch.ttlDays) {
+    await setSetting(K("dataforseo.ttl_days"), {
+      volume: Math.max(MIN_TTL_DAYS, patch.ttlDays.volume),
+      labs: Math.max(MIN_TTL_DAYS, patch.ttlDays.labs),
+      backlinks: Math.max(MIN_TTL_DAYS, patch.ttlDays.backlinks),
+    });
+  }
   if (patch.defaultMode) await setSetting(K("dataforseo.default_mode"), patch.defaultMode);
   if (patch.automationsMaySpend !== undefined)
     await setSetting(K("dataforseo.automations_may_spend"), patch.automationsMaySpend);

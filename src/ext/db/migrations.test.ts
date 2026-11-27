@@ -51,3 +51,14 @@ describe("ext migrations", () => {
     d2.close();
   });
 });
+
+describe("migrate-ext runner", () => {
+  it("creates __drizzle_migrations itself when the core runner never did", () => {
+    const db = new Database(":memory:");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { run } = require(path.join(process.cwd(), "src", "ext", "db", "migrate-ext.cjs"));
+    expect(run(db)).toBeGreaterThan(0);
+    for (const t of TABLES) expect(names(db)).toContain(t);
+    db.close();
+  });
+});

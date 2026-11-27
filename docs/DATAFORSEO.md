@@ -29,7 +29,8 @@ All on **Settings → DataForSEO** (owner only):
 - **Team monthly cap (USD)**: required. A paid call is refused if this month's spend plus the call's estimate would pass it.
 - **Per-user monthly caps**: optional, one per team member. Both the user cap and the team cap must have room.
 - **Per-request maximum**: default $1.00. A single request estimated above it is refused.
-- **Alerts at 80% and 100%** of the team cap (and of any user cap), once each per month. They show as a banner on the market-data and settings pages and in the activity log, and the owner(s) get an email **if SMTP is configured** under Settings. With no SMTP, the in-app alert still appears.
+- **Cache lifetimes**: volume, Labs and backlink data each have a TTL in days. The minimum is **1 day**; 0 would switch caching off and re-bill every lookup, so it is refused (and a stored 0 is treated as 1).
+- **Alerts at 80% and 100%** of the team cap (and of any user cap), once each per month. The 100% alert also fires when a call is *blocked* by the cap (spent plus the call's estimate would pass it), not only once spending reaches it. They show as a banner on the market-data and settings pages and in the activity log, and the owner(s) get an email **if SMTP is configured** under Settings. With no SMTP, the in-app alert still appears.
 - **Automations may spend**: off by default. When off, scheduled jobs and other background work only read cache. When on, they still respect the caps.
 - Months are UTC calendar months. Spend is tracked in this install's ledger (estimated up front, settled to the actual cost DataForSEO reports); it is not your DataForSEO invoice. **Settings → DataForSEO** shows the team view, **Account → My DataForSEO spend** shows your own.
 
@@ -79,9 +80,18 @@ Hover a badge for the date and why a fallback was used.
 
 Paid buttons are hidden for viewers and the page says their role is read-only. A member opening another client's market-data page gets "not found".
 
+## Reliability and safety rules
+
+- **Paid POSTs are never retried after a timeout or network error.** DataForSEO may already have billed the call. Such a failure keeps the reservation settled at its *estimate* on the ledger and the request is marked failed with "may have been charged". Paid POSTs are only retried on codes that mean "not charged" (40202 rate limit, 40209, HTTP 429). Free GETs (tasks_ready, task_get) still retry.
+- **Interrupted calls**: a reservation with no task id still `reserved` after 1 hour (for example after a crash) is settled at its estimate by the background job and its request is marked failed, never released at $0.
+- **No double payment for queued keywords**: a standard-queue lookup skips keywords already covered by a pending request of the same client, location and language, and points to that request instead. If everything is covered nothing is posted.
+- **Free poll errors are transient**: bad credentials or an empty balance reported by the free task checks leave the request pending (the 48 hour rule still applies) instead of failing it.
+- **Cache-only reads of other domains**: viewers and members (anyone who does not see every client) can read cached ranked-keyword and backlink data only for the client's own domain or one of that client's competitors; any other target is refused. Owners, managers and workspace tokens are not restricted.
+- **Keyword lookups that may spend surface errors**: a budget refusal, a forbidden role, empty balance or bad credentials is shown as an error rather than silently replaced by the free estimate. Cache-only lookups still fall back with a reason. A country override that is not supported is refused instead of using the client's market.
+
 ## MCP
 
-Signed-in users create their own tokens at **Account → MCP tokens**. A per-user token sees only what that user sees and is read-only by default (viewers can never have a write token). See [mcp-server.md](mcp-server.md) for connecting.
+Signed-in users create their own tokens at **Account → MCP tokens**. A per-user token sees only what that user sees and is read-only by default (viewers can never have a write token). See [mcp-server.md](mcp-server.md) for connecting. The owner can switch per-user tokens off (503) and list or revoke every user's tokens on the same page.
 
 Each DataForSEO tool comes in two forms:
 
@@ -113,10 +123,10 @@ DataForSEO's Backlinks API may need a separate subscription or access on your ac
 ## Troubleshooting
 
 - **"DataForSEO balance is empty" (code 40210, or HTTP 402)**: top up your DataForSEO account. Not retried.
-- **Rate limit (code 40202)**: per-minute limit hit. The app retries with backoff a few times; if it still fails, wait a minute. Live volume lookups are limited to about 12 per minute per account.
+- **Rate limit (code 40202)**: per-minute limit hit. The app retries with backoff a few times (paid POSTs included, since the call was rejected before any charge); if it still fails, wait a minute. Live volume lookups are limited to about 12 per minute per account.
 - **"Not configured"**: add credentials in Settings → DataForSEO, or set the env vars; check the key if you moved the install.
 - **"Set SEO_ENCRYPTION_KEY"**: see Setup step 1.
 - **"No DataForSEO team budget is set"**: set the team cap.
-- **Pending request never finishes**: finished tasks are collected every 2 minutes by the background job (also whenever the pending page is open). A request still waiting after **48 hours** is marked failed and its reserved budget is released.
+- **Pending request never finishes**: finished tasks are collected every 2 minutes by the background job (also whenever the pending page is open). A request still waiting after **48 hours** is marked failed and its reserved budget is released. Empty balance or bad credentials reported while collecting do not fail it; fix the account and it completes.
 - **"This client's country has no known DataForSEO location"**: set a supported country on the client (UK is treated as GB), or pass a location and language through the MCP tool.
 - **Test connection fails**: check you used the API login/password, not the website login; the error text has credentials redacted.

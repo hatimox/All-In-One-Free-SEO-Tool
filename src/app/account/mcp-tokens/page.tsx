@@ -4,9 +4,11 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { KeyRound } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
-import { accountsEnabled, currentUser } from "@/lib/auth";
+import { accountsEnabled, canManageSettings, currentUser } from "@/lib/auth";
 import { McpTokenManager } from "@/ext/ui/mcp-token-manager";
-import { listTokens } from "@/ext/mcp/tokens";
+import { listAllTokens, listTokens } from "@/ext/mcp/tokens";
+import { perUserMcpEnabled } from "@/ext/mcp/per-user-switch";
+import { McpTokenAdmin } from "@/ext/ui/mcp-token-admin";
 
 export default async function McpTokensPage() {
   const header = (
@@ -55,10 +57,27 @@ export default async function McpTokensPage() {
     revokedAt: t.revokedAt?.toISOString() ?? null,
   }));
 
+  const admin = canManageSettings(me.role)
+    ? {
+        enabled: await perUserMcpEnabled(),
+        tokens: listAllTokens().map((t) => ({
+          id: t.id,
+          userLabel: t.userName || t.userEmail,
+          role: t.userRole,
+          label: t.label,
+          readOnly: t.readOnly,
+          createdAt: t.createdAt.toISOString(),
+          lastUsedAt: t.lastUsedAt?.toISOString() ?? null,
+          revokedAt: t.revokedAt?.toISOString() ?? null,
+        })),
+      }
+    : null;
+
   return (
     <div className="space-y-6">
       {header}
       <McpTokenManager tokens={tokens} endpoint={`${proto}://${host}/api/mcp`} viewerOnly={me.role === "viewer"} />
+      {admin && <McpTokenAdmin tokens={admin.tokens} enabled={admin.enabled} />}
     </div>
   );
 }

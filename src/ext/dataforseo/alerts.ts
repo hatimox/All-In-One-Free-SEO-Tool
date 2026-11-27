@@ -51,6 +51,17 @@ async function notify(scope: string, threshold: number, spentUsd: number, capUsd
   }
 }
 
+/**
+ * A reserve() was blocked by a cap. `checkAlerts` only fires 100% once spent
+ * >= cap, but reserve blocks at spent + estimate > cap, so raise the 100%
+ * alert here too (once per scope+month; no ledger write).
+ */
+export async function raiseCapAlert(scope: string, spentUsd: number, capUsd: number, now = new Date()): Promise<boolean> {
+  if (!tryInsert(monthKey(now), scope, 100)) return false;
+  await notify(scope, 100, spentUsd, capUsd);
+  return true;
+}
+
 /** Returns the alerts newly raised by this check. */
 export async function checkAlerts(opts: { userId: number | null; now?: Date }): Promise<DfsAlert[]> {
   const now = opts.now ?? new Date();

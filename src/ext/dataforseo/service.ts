@@ -14,11 +14,14 @@
  * collects them, and `getRequest()` reads the outcome.
  */
 import { and, eq } from "drizzle-orm";
-import { db } from "@/db/client";
+import { competitors as competitorsTable } from "@/db/schema";
+import { db, sqlite } from "@/db/client";
 import { extDfsRequests } from "../db/schema";
 import { guardPaid, guardRead } from "../access/paid-guard";
-import { checkAlerts } from "./alerts";
-import { attachTask, recordCacheHit, release, reserve, settle } from "./budget";
+import { getMcpContext, mcpSeesAll } from "../mcp/context";
+import { visibleClientIdsForAction } from "../access/record-scope";
+import { checkAlerts, raiseCapAlert } from "./alerts";
+import { attachTask, BudgetError, recordCacheHit, release, reserve, settle, type Reservation, type ReserveInput } from "./budget";
 import {
   cacheKeyFor,
   getCachedMetrics,
@@ -30,7 +33,7 @@ import {
   type MetricRow,
   type TtlKind,
 } from "./cache";
-import { costToMicros, DataForSeoError } from "./client";
+import { costToMicros, DataForSeoError, isAuthOrFundsError } from "./client";
 import { getSettings, isConfigured } from "./config";
 import * as backlinksApi from "./endpoints/backlinks";
 import * as labsApi from "./endpoints/labs";
@@ -111,6 +114,63 @@ function finishRequest(id: number, status: "ready" | "failed", error?: string | 
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+const AMBIGUOUS_NOTE =
+  " The call may have been charged by DataForSEO; the estimated cost was kept on the ledger and it was not retried.";
+
+/**
+ * A paid call failed after reserving. Normally nothing was charged and the
+ * reservation is released. When the failure is ambiguous (network error or
+ * timeout after sending) DataForSEO may already have billed, so the
+ * reservation is settled at its estimate instead. Returns the error text to
+ * record on the request.
+ */
+function abandonReservation(res: Reservation, e: unknown): string {
+  if (e instanceof DataForSeoError && e.ambiguous) {
+    settle(res.id, res.estimatedMicros);
+    return errText(e) + AMBIGUOUS_NOTE;
+  }
+  release(res.id, "failed");
+  return errText(e);
+}
+
+/** reserve(), raising the 100% alert when the call is blocked by a cap. */
+async function reserveAlerting(input: ReserveInput): Promise<Reservation> {
+  try {
+    return await reserve(input);
+  } catch (e) {
+    if (e instanceof BudgetError && e.capUsd !== null) {
+      if (e.scope === "team") await raiseCapAlert("team", e.spentUsd, e.capUsd);
+      else if (e.scope === "user" && input.userId !== null) await raiseCapAlert("user:" + input.userId, e.spentUsd, e.capUsd);
+    }
+    throw e;
+  }
+}
+
+/**
+ * Cache-only reads must not let a user of client A read data that was paid
+ * for another client's domain: for callers who do not see every client, only
+ * the client's own domain and its competitors are readable.
+ */
+async function assertCacheTargets(clientId: number, targets: string[], cacheOnly?: boolean): Promise<void> {
+  if (!cacheOnly) return;
+  const seesAll = getMcpContext() ? mcpSeesAll() : (await visibleClientIdsForAction()) === null;
+  if (seesAll) return;
+  const allowed = new Set<string>();
+  const own = await clientDomain(clientId);
+  if (own) allowed.add(own);
+  for (const c of db.select({ url: competitorsTable.url }).from(competitorsTable).where(eq(competitorsTable.clientId, clientId)).all()) {
+    const d = backlinksApi.bareDomain(c.url);
+    if (d) allowed.add(d);
+  }
+  for (const t of targets) {
+    if (!allowed.has(backlinksApi.bareDomain(t))) {
+      throw new Error(
+        `Cached data is only readable for this client's own domain or its competitors; "${t}" is neither. Add it as a competitor first.`,
+      );
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Volumes
 // ---------------------------------------------------------------------------
@@ -155,20 +215,28 @@ export async function getVolumes(
   const userId = await guardPaid(opts.clientId);
   const settings = await getSettings();
   const mode: Mode = opts.mode ?? settings.defaultMode;
-  const chunks = volumeApi.chunkKeywords(misses);
-  const params = { keywords: misses, ...m, mode };
+
+  // Do not pay twice for keywords an in-flight request of this client already covers.
+  const inflight = inflightVolumeKeywords(opts.clientId, m);
+  const toFetch = misses.filter((k) => !inflight.keywords.has(k));
+  if (toFetch.length === 0) {
+    return { status: "pending", requestId: inflight.requestId!, rows, pendingKeywords: misses };
+  }
+  const chunks = volumeApi.chunkKeywords(toFetch);
+  const params = { keywords: toFetch, ...m, mode };
 
   if (mode === "live") {
     const requestId = newRequest({ clientId: opts.clientId, userId, kind: "volume", params, status: "pending" });
     let cost = 0;
+    let failure: string | null = null;
     try {
       for (const chunk of chunks) {
-        const res = await reserve({ userId, clientId: opts.clientId, endpoint: "search_volume", mode, units: 1, requestId });
+        const res = await reserveAlerting({ userId, clientId: opts.clientId, endpoint: "search_volume", mode, units: 1, requestId });
         let out: Awaited<ReturnType<typeof volumeApi.volumeLive>>;
         try {
           out = await volumeApi.volumeLive({ keywords: chunk, ...m });
         } catch (e) {
-          release(res.id, "failed");
+          failure = abandonReservation(res, e);
           throw e;
         }
         settle(res.id, costToMicros(out.costUsd), out.taskId);
@@ -177,7 +245,7 @@ export async function getVolumes(
         await checkAlerts({ userId });
       }
     } catch (e) {
-      finishRequest(requestId, "failed", errText(e));
+      finishRequest(requestId, "failed", failure ?? errText(e));
       throw e;
     }
     finishRequest(requestId, "ready");
@@ -188,10 +256,11 @@ export async function getVolumes(
   const requestId = newRequest({ clientId: opts.clientId, userId, kind: "volume", params, status: "pending" });
   const tasks: TaskState[] = [];
   let firstError: unknown = null;
+  let firstErrorText: string | null = null;
   for (const chunk of chunks) {
     let res: Awaited<ReturnType<typeof reserve>>;
     try {
-      res = await reserve({ userId, clientId: opts.clientId, endpoint: "search_volume", mode, units: 1, requestId });
+      res = await reserveAlerting({ userId, clientId: opts.clientId, endpoint: "search_volume", mode, units: 1, requestId });
     } catch (e) {
       firstError = e;
       break;
@@ -203,21 +272,46 @@ export async function getVolumes(
       if (posted.costUsd > 0) settle(res.id, costToMicros(posted.costUsd), posted.taskId);
       tasks.push({ taskId: posted.taskId, ledgerId: res.id, keywords: chunk, done: false });
     } catch (e) {
-      release(res.id, "failed");
+      firstErrorText = abandonReservation(res, e);
       firstError = e;
       break;
     }
   }
   if (tasks.length === 0) {
-    finishRequest(requestId, "failed", errText(firstError));
+    finishRequest(requestId, "failed", firstErrorText ?? errText(firstError));
     throw firstError;
   }
   db.update(extDfsRequests)
-    .set({ taskIdsJson: JSON.stringify(tasks), error: firstError ? "Some batches were not posted: " + errText(firstError) : null })
+    .set({ taskIdsJson: JSON.stringify(tasks), error: firstError ? "Some batches were not posted: " + (firstErrorText ?? errText(firstError)) : null })
     .where(eq(extDfsRequests.id, requestId))
     .run();
   await checkAlerts({ userId });
   return { status: "pending", requestId, rows, pendingKeywords: misses };
+}
+
+/** Keywords (and the first request id) of this client's pending volume requests for a market. */
+function inflightVolumeKeywords(clientId: number, m: { locationCode: number; languageCode: string }) {
+  const out = { keywords: new Set<string>(), requestId: null as number | null };
+  const rows = db
+    .select()
+    .from(extDfsRequests)
+    .where(and(eq(extDfsRequests.status, "pending"), eq(extDfsRequests.kind, "volume"), eq(extDfsRequests.clientId, clientId)))
+    .all();
+  for (const r of rows) {
+    let p: { keywords?: string[]; locationCode?: number; languageCode?: string };
+    try {
+      p = JSON.parse(r.paramsJson);
+    } catch {
+      continue;
+    }
+    if (p.locationCode !== m.locationCode || p.languageCode !== m.languageCode) continue;
+    const tasks: TaskState[] = r.taskIdsJson ? JSON.parse(r.taskIdsJson) : [];
+    const kws = tasks.length ? tasks.filter((t) => !t.done).flatMap((t) => t.keywords) : (p.keywords ?? []);
+    if (kws.length === 0) continue;
+    for (const k of kws) out.keywords.add(k);
+    out.requestId ??= r.id;
+  }
+  return out;
 }
 
 async function collect(keywords: string[], m: { locationCode: number; languageCode: string }): Promise<CachedMetric[]> {
@@ -227,6 +321,28 @@ async function collect(keywords: string[], m: { locationCode: number; languageCo
 type TaskState = { taskId: string; ledgerId: number; keywords: string[]; done: boolean; failed?: boolean };
 
 const STALE_PENDING_MS = 48 * 3_600_000;
+
+/**
+ * Read-modify-write of a request's task states inside one synchronous
+ * better-sqlite3 transaction (no await), OR-ing the `done`/`failed` flags so
+ * two overlapping polls (scheduler + pending-page action) cannot lose an update.
+ */
+export function mergeTaskStates(requestId: number, mine: TaskState[]): TaskState[] {
+  const tx = sqlite.transaction((): TaskState[] => {
+    const row = sqlite.prepare("SELECT task_ids_json AS j FROM ext_dfs_requests WHERE id = ?").get(requestId) as { j: string | null } | undefined;
+    const theirs: TaskState[] = row?.j ? JSON.parse(row.j) : [];
+    const byId = new Map(theirs.map((t) => [t.taskId, t]));
+    const out = mine.map((t) => {
+      const o = byId.get(t.taskId);
+      if (!o) return t;
+      return { ...t, done: t.done || o.done, failed: t.done ? t.failed : o.done ? o.failed : t.failed };
+    });
+    for (const o of theirs) if (!out.some((t) => t.taskId === o.taskId)) out.push(o);
+    sqlite.prepare("UPDATE ext_dfs_requests SET task_ids_json = ? WHERE id = ?").run(JSON.stringify(out), requestId);
+    return out;
+  });
+  return tx.immediate();
+}
 
 /**
  * Collect finished standard-queue tasks: fills caches, settles any still
@@ -246,7 +362,7 @@ export async function pollPendingRequests(): Promise<{ checked: number; complete
 
   let ready: Set<string>;
   try {
-    ready = new Set(await volumeApi.volumeTasksReady());
+    ready = new Set(await volumeApi.volumeTasksReady()); // auth/funds errors here are transient too
   } catch {
     return out; // transient; try again next tick
   }
@@ -264,7 +380,8 @@ export async function pollPendingRequests(): Promise<{ checked: number; complete
         }
         t.done = true;
       } catch (e) {
-        if (e instanceof DataForSeoError && !e.retryable && e.code !== null) {
+        // Auth/funds errors on the free task_get are transient (fix the account, next poll recovers).
+        if (e instanceof DataForSeoError && !e.retryable && e.code !== null && !isAuthOrFundsError(e)) {
           release(t.ledgerId, "failed");
           t.done = true;
           t.failed = true;
@@ -272,9 +389,11 @@ export async function pollPendingRequests(): Promise<{ checked: number; complete
         // retryable / network: leave for the next poll
       }
     }
+    // Merge with what a concurrent poll may have written meanwhile: a task is never un-done.
+    const merged = mergeTaskStates(req.id, tasks);
+    tasks.splice(0, tasks.length, ...merged);
     const allDone = tasks.length > 0 && tasks.every((t) => t.done);
     const stale = Date.now() - req.createdAt.getTime() > STALE_PENDING_MS;
-    db.update(extDfsRequests).set({ taskIdsJson: JSON.stringify(tasks) }).where(eq(extDfsRequests.id, req.id)).run();
     if (allDone) {
       const anyFailed = tasks.some((t) => t.failed);
       finishRequest(req.id, anyFailed && tasks.every((t) => t.failed) ? "failed" : "ready", anyFailed ? "Some DataForSEO tasks failed." : req.error);
@@ -357,7 +476,7 @@ async function liveCall<T>(a: {
   const requestId = newRequest({ clientId: a.clientId, userId, kind: a.kind, params: a.params, cacheKey: key, status: "pending" });
   let res: Awaited<ReturnType<typeof reserve>>;
   try {
-    res = await reserve({ userId, clientId: a.clientId, endpoint: a.endpoint, mode: "live", units: a.units, requestId });
+    res = await reserveAlerting({ userId, clientId: a.clientId, endpoint: a.endpoint, mode: "live", units: a.units, requestId });
   } catch (e) {
     finishRequest(requestId, "failed", errText(e));
     throw e;
@@ -366,8 +485,7 @@ async function liveCall<T>(a: {
   try {
     out = await a.run();
   } catch (e) {
-    release(res.id, "failed");
-    finishRequest(requestId, "failed", errText(e));
+    finishRequest(requestId, "failed", abandonReservation(res, e));
     throw e;
   }
   settle(res.id, costToMicros(out.costUsd));
@@ -382,14 +500,17 @@ const limitOf = (o: { limit?: number }) => Math.max(1, Math.min(o.limit ?? DEFAU
 
 export async function keywordIdeas(opts: ListOpts & { seeds: string[]; variant?: "ideas" | "suggestions" }) {
   const m = await resolveMarket(opts.clientId, opts);
-  const seeds = normalizeKeywords(opts.seeds);
+  // Sorted so the same seeds in any order share one cache key.
+  const seeds = normalizeKeywords(opts.seeds).sort();
   if (seeds.length === 0) throw new Error("Give at least one seed keyword.");
   const limit = limitOf(opts);
   const suggestions = opts.variant === "suggestions";
+  // The suggestions endpoint takes ONE keyword; key on exactly what is sent.
+  const keyed = suggestions ? seeds.slice(0, 1) : seeds;
   return liveCall({
     clientId: opts.clientId, kind: "ideas", ttl: "labs", units: limit, cacheOnly: opts.cacheOnly,
     endpoint: suggestions ? "labs_keyword_suggestions" : "labs_keyword_ideas",
-    params: { seeds, ...m, limit, suggestions },
+    params: { seeds: keyed, ...m, limit, suggestions },
     run: async () => {
       const r = suggestions
         ? await labsApi.keywordSuggestionsLive({ keyword: seeds[0], ...m, limit })
@@ -404,6 +525,7 @@ export async function rankedKeywords(opts: ListOpts & { target?: string }) {
   const m = await resolveMarket(opts.clientId, opts);
   const target = backlinksApi.bareDomain(opts.target ?? (await clientDomain(opts.clientId)) ?? "");
   if (!target) throw new Error("No target domain: pass `target` or set the client's URL.");
+  await assertCacheTargets(opts.clientId, [target], opts.cacheOnly);
   const limit = limitOf(opts);
   return liveCall({
     clientId: opts.clientId, kind: "ranked_keywords", ttl: "labs", units: limit, cacheOnly: opts.cacheOnly,
@@ -415,14 +537,15 @@ export async function rankedKeywords(opts: ListOpts & { target?: string }) {
   });
 }
 
-async function targetOf(clientId: number, target?: string): Promise<string> {
+async function targetOf(clientId: number, target?: string, cacheOnly?: boolean): Promise<string> {
   const t = backlinksApi.bareDomain(target ?? (await clientDomain(clientId)) ?? "");
   if (!t) throw new Error("No target domain: pass `target` or set the client's URL.");
+  await assertCacheTargets(clientId, [t], cacheOnly);
   return t;
 }
 
 export async function backlinksSummary(opts: CommonOpts & { target?: string }) {
-  const target = await targetOf(opts.clientId, opts.target);
+  const target = await targetOf(opts.clientId, opts.target, opts.cacheOnly);
   return liveCall({
     clientId: opts.clientId, kind: "backlinks_summary", ttl: "backlinks", units: 1, cacheOnly: opts.cacheOnly,
     backlinks: true, endpoint: "backlinks_summary", params: { target },
@@ -434,7 +557,7 @@ export async function backlinksSummary(opts: CommonOpts & { target?: string }) {
 }
 
 export async function backlinksList(opts: ListOpts & { target?: string }) {
-  const target = await targetOf(opts.clientId, opts.target);
+  const target = await targetOf(opts.clientId, opts.target, opts.cacheOnly);
   const limit = limitOf(opts);
   return liveCall({
     clientId: opts.clientId, kind: "backlinks_list", ttl: "backlinks", units: limit, cacheOnly: opts.cacheOnly,
@@ -447,7 +570,7 @@ export async function backlinksList(opts: ListOpts & { target?: string }) {
 }
 
 export async function referringDomains(opts: ListOpts & { target?: string }) {
-  const target = await targetOf(opts.clientId, opts.target);
+  const target = await targetOf(opts.clientId, opts.target, opts.cacheOnly);
   const limit = limitOf(opts);
   return liveCall({
     clientId: opts.clientId, kind: "referring_domains", ttl: "backlinks", units: limit, cacheOnly: opts.cacheOnly,
@@ -461,9 +584,10 @@ export async function referringDomains(opts: ListOpts & { target?: string }) {
 
 /** Domains that link to the competitors but NOT to the client (or `target`). */
 export async function backlinkGap(opts: ListOpts & { competitors: string[]; target?: string }) {
-  const target = await targetOf(opts.clientId, opts.target);
+  const target = await targetOf(opts.clientId, opts.target, opts.cacheOnly);
   const competitors = [...new Set(opts.competitors.map(backlinksApi.bareDomain).filter(Boolean))];
   if (competitors.length === 0) throw new Error("Give at least one competitor domain.");
+  await assertCacheTargets(opts.clientId, competitors, opts.cacheOnly);
   const limit = limitOf(opts);
   return liveCall({
     clientId: opts.clientId, kind: "backlink_gap", ttl: "backlinks", units: limit, cacheOnly: opts.cacheOnly,

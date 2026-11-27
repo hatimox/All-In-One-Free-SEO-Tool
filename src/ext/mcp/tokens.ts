@@ -92,3 +92,26 @@ function touch(id: number, last: Date | null): void {
 export function resetTokenTouchCache(): void {
   lastTouch.clear();
 }
+
+export type AdminTokenInfo = TokenInfo & { userId: number; userName: string | null; userEmail: string; userRole: Role };
+
+/** Owner view: every user's tokens (never the secret, only metadata). */
+export function listAllTokens(): AdminTokenInfo[] {
+  return db
+    .select({ t: extMcpTokens, name: users.name, email: users.email, role: users.role })
+    .from(extMcpTokens)
+    .innerJoin(users, eq(users.id, extMcpTokens.userId))
+    .orderBy(desc(extMcpTokens.id))
+    .all()
+    .map((r) => ({ ...toInfo(r.t), userId: r.t.userId, userName: r.name, userEmail: r.email, userRole: r.role }));
+}
+
+/** Owner action: revoke any user's token. False when missing or already revoked. */
+export function revokeAnyToken(tokenId: number): boolean {
+  const r = db
+    .update(extMcpTokens)
+    .set({ revokedAt: new Date() })
+    .where(and(eq(extMcpTokens.id, tokenId), isNull(extMcpTokens.revokedAt)))
+    .run();
+  return r.changes > 0;
+}

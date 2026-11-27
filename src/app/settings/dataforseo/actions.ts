@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { guardAction } from "@/lib/action-guard";
-import { clearCredentials, saveCredentials, saveSettings, type DfsSettings } from "@/ext/dataforseo/config";
+import { clearCredentials, MIN_TTL_DAYS, saveCredentials, saveSettings, type DfsSettings } from "@/ext/dataforseo/config";
 import { getBalance } from "@/ext/dataforseo/endpoints/account";
 import { mapDfsError } from "@/ext/ui/dfs-errors";
 
@@ -70,6 +70,9 @@ export async function saveDfsSettings(_prev: DfsActionResult | null, formData: F
   const ttl = { volume: num(formData.get("ttlVolume")), labs: num(formData.get("ttlLabs")), backlinks: num(formData.get("ttlBacklinks")) };
   if ([team, reqMax, ttl.volume, ttl.labs, ttl.backlinks].some((n) => Number.isNaN(n))) {
     return { ok: false, error: "Amounts and day counts must be numbers, zero or more." };
+  }
+  if ([ttl.volume, ttl.labs, ttl.backlinks].some((n) => n !== null && n < MIN_TTL_DAYS)) {
+    return { ok: false, error: `Cache lifetimes must be at least ${MIN_TTL_DAYS} day (0 would switch caching off and re-bill every lookup).` };
   }
   const userCaps: Record<string, number> = {};
   for (const [k, v] of formData.entries()) {

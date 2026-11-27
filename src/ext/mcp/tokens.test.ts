@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
 import { resetExtTables } from "../dataforseo/test-utils";
-import { TOKEN_PREFIX, createToken, listTokens, resetTokenTouchCache, resolveToken, revokeToken } from "./tokens";
+import { TOKEN_PREFIX, createToken, listAllTokens, listTokens, resetTokenTouchCache, resolveToken, revokeAnyToken, revokeToken } from "./tokens";
+import { perUserMcpEnabled, setPerUserMcpEnabled } from "./per-user-switch";
 import { sqlite } from "@/db/client";
 
 function mkUser(role: "owner" | "member" | "viewer", active = true) {
@@ -76,17 +77,49 @@ import { resetRateLimits } from "@/lib/mcp/rate-limit";
 
 describe("route auth for per-user tokens", () => {
   const req = (tok?: string) => new Request("http://x/api/mcp", { headers: tok ? { authorization: `Bearer ${tok}` } : {} });
-  it("returns null for non-user bearers so legacy tokens are tried next", () => {
-    expect(authorizeUserToken(req("legacytoken"))).toBeNull();
-    expect(authorizeUserToken(req())).toBeNull();
-    expect(authorizeUserToken(req(TOKEN_PREFIX + "bogus"))).toBeNull();
+  it("returns null for non-user bearers so legacy tokens are tried next", async () => {
+    expect(await authorizeUserToken(req("legacytoken"))).toBeNull();
+    expect(await authorizeUserToken(req())).toBeNull();
+    expect(await authorizeUserToken(req(TOKEN_PREFIX + "bogus"))).toBeNull();
   });
-  it("maps a token to a user context and scope", () => {
+  it("maps a token to a user context and scope", async () => {
     resetRateLimits();
     const uid = mkUser("member");
     const ro = createToken({ userId: uid, label: "a" }).token;
     const rw = createToken({ userId: uid, label: "b", readOnly: false }).token;
-    expect(authorizeUserToken(req(ro))).toMatchObject({ scope: "read_only", ctx: { kind: "user", userId: uid, readOnly: true } });
-    expect(authorizeUserToken(req(rw))).toMatchObject({ scope: "full", ctx: { readOnly: false } });
+    expect(await authorizeUserToken(req(ro))).toMatchObject({ scope: "read_only", ctx: { kind: "user", userId: uid, readOnly: true } });
+    expect(await authorizeUserToken(req(rw))).toMatchObject({ scope: "full", ctx: { readOnly: false } });
+  });
+  it("refuses every per-user token with a 503 once the owner turns the switch off", async () => {
+    resetRateLimits();
+    const uid = mkUser("member");
+    const tok = createToken({ userId: uid, label: "a" }).token;
+    expect(await perUserMcpEnabled()).toBe(true); // default on
+    await setPerUserMcpEnabled(false);
+    try {
+      const res = (await authorizeUserToken(req(tok))) as Response;
+      expect(res.status).toBe(503);
+      expect((await res.json()).error).toMatch(/Remote MCP is off/);
+      // non-user bearers are unaffected (legacy tokens have their own switch)
+      expect(await authorizeUserToken(req("legacytoken"))).toBeNull();
+    } finally {
+      await setPerUserMcpEnabled(true);
+    }
+    expect(await authorizeUserToken(req(tok))).toMatchObject({ scope: "read_only" });
+  });
+});
+
+describe("owner token administration", () => {
+  it("lists every user's tokens and revokes any of them", () => {
+    const a = mkUser("member");
+    const b = mkUser("viewer");
+    const ta = createToken({ userId: a, label: "a-tok" });
+    createToken({ userId: b, label: "b-tok" });
+    const all = listAllTokens().filter((t) => [a, b].includes(t.userId));
+    expect(all.map((t) => t.label).sort()).toEqual(["a-tok", "b-tok"]);
+    expect(all[0]).toHaveProperty("userEmail");
+    expect(revokeAnyToken(ta.info.id)).toBe(true);
+    expect(resolveToken(ta.token)).toBeNull();
+    expect(revokeAnyToken(ta.info.id)).toBe(false);
   });
 });

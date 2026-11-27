@@ -83,7 +83,7 @@ async function authorize(req: Request): Promise<Response | Allowed> {
     });
   }
 
-  const perUser = authorizeUserToken(req); // ext: per-user tokens first, legacy below
+  const perUser = await authorizeUserToken(req); // ext: per-user tokens first, legacy below
   if (perUser) return perUser;
 
   const full = (await getSetting<string>("mcp.access_token")) ?? "";
@@ -168,6 +168,7 @@ async function handle(req: Request): Promise<Response> {
   const server = createMcpServer(
     req.headers.get("user-agent") ?? "remote client",
     allowed.scope,
+    true, // ext: HTTP always runs inside a context; a lost one is denied, never owner-level
   );
   await server.connect(transport);
 

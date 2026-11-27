@@ -40,6 +40,37 @@ describe("dfs client", () => {
     expect(fn).toHaveBeenCalledTimes(4);
   });
 
+  it("never retries a paid POST after a network error or timeout (it may have been billed)", async () => {
+    const { fn } = mockFetch({ "/live": () => { throw new Error("socket hang up"); } });
+    const err = await dfsRequest("POST", "/v3/x/live", [{}]).catch((e) => e);
+    expect(err).toBeInstanceOf(DataForSeoError);
+    expect(err.ambiguous).toBe(true);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry a POST on a 5xx, but retries it on 40202 / 40209 / 429 (not charged)", async () => {
+    const five = mockFetch({ "/p": () => new Response("oops", { status: 503 }) });
+    await expect(dfsRequest("POST", "/p", [{}])).rejects.toBeInstanceOf(DataForSeoError);
+    expect(five.fn).toHaveBeenCalledTimes(1);
+    for (const code of [40202, 40209]) {
+      let n = 0;
+      const { fn } = mockFetch({ "/p": () => (++n < 2 ? { status_code: code, status_message: "limit", tasks: [] } : fixture("user_data.json")) });
+      await dfsRequest("POST", "/p", [{}]);
+      expect(fn).toHaveBeenCalledTimes(2);
+    }
+    let m = 0;
+    const r429 = mockFetch({ "/p": () => (++m < 2 ? new Response("slow down", { status: 429 }) : fixture("user_data.json")) });
+    await dfsRequest("POST", "/p", [{}]);
+    expect(r429.fn).toHaveBeenCalledTimes(2);
+  });
+
+  it("still retries GETs on network errors", async () => {
+    let n = 0;
+    const { fn } = mockFetch({ "/g": () => { if (++n < 3) throw new Error("reset"); return fixture("user_data.json"); } });
+    await dfsRequest("GET", "/g");
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
   it("never leaks credentials or the Authorization header in errors", async () => {
     mockFetch({
       "/x": () => {

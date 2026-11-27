@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { guardAction } from "@/lib/action-guard";
 import { accountsEnabled, currentUser } from "@/lib/auth";
-import { createToken, revokeToken } from "./tokens";
+import { setPerUserMcpEnabled } from "./per-user-switch";
+import { createToken, revokeAnyToken, revokeToken } from "./tokens";
 
 export type TokenActionResult =
   | { ok: true; token?: string; message?: string }
@@ -33,4 +34,20 @@ export async function revokeMcpToken(tokenId: number): Promise<TokenActionResult
   if (!revokeToken(user.id, Number(tokenId))) return { ok: false, error: "Token not found." };
   revalidatePath("/account/mcp-tokens");
   return { ok: true };
+}
+
+/** Owner only: revoke any user's token. */
+export async function adminRevokeMcpToken(tokenId: number): Promise<TokenActionResult> {
+  await guardAction("settings");
+  if (!revokeAnyToken(Number(tokenId))) return { ok: false, error: "Token not found." };
+  revalidatePath("/account/mcp-tokens");
+  return { ok: true };
+}
+
+/** Owner only: allow or refuse every per-user token at /api/mcp. */
+export async function setPerUserMcp(enabled: boolean): Promise<TokenActionResult> {
+  await guardAction("settings");
+  await setPerUserMcpEnabled(enabled === true);
+  revalidatePath("/account/mcp-tokens");
+  return { ok: true, message: enabled ? "Personal tokens are accepted." : "Personal tokens are refused." };
 }

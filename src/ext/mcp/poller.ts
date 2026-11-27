@@ -9,6 +9,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { extDfsRequests } from "../db/schema";
 import { pollPendingRequests } from "../dataforseo/service";
+import { sweepStaleReservations } from "../dataforseo/sweep";
 
 export const POLL_EVERY_MS = 2 * 60_000;
 
@@ -27,6 +28,11 @@ export async function tickDfsPoller(): Promise<{ skipped?: "overlap" | "idle"; c
   if (running) return { skipped: "overlap" };
   running = true;
   try {
+    try {
+      sweepStaleReservations();
+    } catch {
+      /* best-effort housekeeping */
+    }
     if (!hasPendingRequests()) return { skipped: "idle" };
     return await pollPendingRequests();
   } finally {

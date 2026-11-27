@@ -90,6 +90,19 @@ with `seo_mcp_`, is shown once, and only its hash is stored.
 - A token stops working the moment it is revoked or its user is deactivated.
 - The endpoint tries a per-user token first, then the two workspace tokens.
   Rate limiting is per token.
+- **Owner switch.** The workspace owner can turn per-user tokens off
+  (setting `mcp.per_user_enabled`, default on) on `/account/mcp-tokens`. While
+  off, every per-user token is refused with a 503 "Remote MCP is off", whatever
+  the workspace tokens' state. The same owner section lists every user's tokens
+  (user, label, read-only or full, created, last used) and can revoke any of
+  them. Only the secret is never shown.
+- If a tool ever runs on the HTTP endpoint without an identity context, it is
+  denied rather than treated as owner-level. Only stdio keeps the owner-level
+  default.
+- The cache-only DataForSEO tools (`dfs_ranked_keywords`, backlink tools) let a
+  member or viewer token read only the client's own domain or its competitors.
+  Their default `limit` is 200, the same as the web UI, so both share cached
+  results.
 
 Check it with `pnpm test:mcp:http FULL_TOKEN READ_ONLY_TOKEN` against a
 running app. The second argument is optional; passing it also checks that
@@ -265,7 +278,8 @@ dependencies aren't installed. Run `pnpm install` in the repo, then
 `pnpm test:mcp` to see the real error.
 
 **503 from the remote endpoint.** No workspace token has been generated yet
-(Settings → AI connection) and the token presented is not a per-user one.
+(Settings → AI connection) and the token presented is not a per-user one, or
+(for a `seo_mcp_` token) the owner has switched per-user tokens off.
 
 **401 from the remote endpoint.** The token in your client's header does
 not match the one stored here. Generating a new token invalidates the old

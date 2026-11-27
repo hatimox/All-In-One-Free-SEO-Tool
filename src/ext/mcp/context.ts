@@ -36,6 +36,26 @@ export function mcpContext(): McpCtx {
   return store.getStore() ?? { kind: "legacy", readOnly: false };
 }
 
+export class McpContextMissingError extends Error {
+  constructor() {
+    super("MCP request context is missing; refusing to run the tool without knowing who is calling.");
+    this.name = "McpContextMissingError";
+  }
+}
+
+/**
+ * The context a tool call runs in. stdio (`requireContext` false) is the
+ * owner-level legacy one when none is set; an HTTP-created server
+ * (`requireContext` true) always has one from the route, and a missing store
+ * is denied rather than silently promoted to owner-level.
+ */
+export function resolveToolContext(requireContext: boolean): McpCtx {
+  const ctx = store.getStore();
+  if (ctx) return ctx;
+  if (requireContext) throw new McpContextMissingError();
+  return { kind: "legacy", readOnly: false };
+}
+
 /** Client ids the caller may see; null = all. */
 export function mcpVisibleClientIds(): number[] | null {
   const ctx = mcpContext();
