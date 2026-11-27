@@ -70,6 +70,27 @@ There are two, and the difference matters:
 claude mcp add -t http seo-tool http://localhost:PORT/api/mcp -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
+**These two workspace tokens are owner-level.** They are not tied to a
+person: they see every client and are not limited by team roles. When
+accounts are enabled, prefer per-user tokens (next section).
+
+#### Per-user tokens
+
+When accounts are enabled, every signed-in user can create their own tokens
+at **Account → MCP tokens** (`/account/mcp-tokens`). A per-user token starts
+with `seo_mcp_`, is shown once, and only its hash is stored.
+
+- It sees what that user sees: owners and managers every client; members and
+  client viewers only their assigned clients. `list_clients` and every tool
+  that takes a client, task, fix, action or queue-item id answer "not found"
+  for anything outside that set. `get_ai_usage` is install-wide, so it is
+  limited to owner/manager tokens.
+- Tokens are read-only by default. Client viewers can only ever have
+  read-only tokens, whatever was requested.
+- A token stops working the moment it is revoked or its user is deactivated.
+- The endpoint tries a per-user token first, then the two workspace tokens.
+  Rate limiting is per token.
+
 Check it with `pnpm test:mcp:http FULL_TOKEN READ_ONLY_TOKEN` against a
 running app. The second argument is optional; passing it also checks that
 the read-only token is refused when it tries to write.
@@ -127,6 +148,38 @@ For work done in a client's own project folder (Astro, Next.js, any local repo).
 | `log_client_research` | Notes what has already been looked into, so the next session does not repeat it. |
 | `save_review_draft` | Stores a reply for a person to approve. Sends nothing. |
 | `reply_to_review` | Publishes a reply on Google, under the business's name. Public, and cannot be withdrawn — only replaced. |
+
+## DataForSEO tools
+
+Keyword and backlink data from DataForSEO, with a spend model that is
+explicit rather than implied. Every data tool takes `clientId` and comes as
+a pair:
+
+| Read-only (cache only, never spends) | Paid (`readOnlyHint: false`) |
+|---|---|
+| `dfs_keyword_metrics` | `dfs_keyword_metrics_fetch` |
+| `dfs_keyword_ideas` | `dfs_keyword_ideas_fetch` |
+| `dfs_ranked_keywords` | `dfs_ranked_keywords_fetch` |
+| `dfs_backlinks_overview` | `dfs_backlinks_overview_fetch` |
+| `dfs_backlink_gap` | `dfs_backlink_gap_fetch` |
+
+Plus two free read-only tools: `dfs_request_status` (status and data of an
+earlier request, for example a keyword-volume task waiting in the standard
+queue) and `dfs_spend_summary` (this month's spend: whole team for the
+workspace tokens and owner tokens, only your own for other per-user tokens).
+
+- The read-only variants return stored data and say `cache_miss` when there
+  is none. They never call DataForSEO.
+- A paid variant needs `allowSpend: true` or it refuses. It is not listed to,
+  and is refused for, read-only tokens and client viewers.
+- Spend is bounded by the team cap (nothing is spent until one is set), any
+  per-user cap and the per-request maximum from DataForSEO settings. A budget
+  or permission refusal comes back as a tool error, never as empty data.
+- Results state their `source`; `dfs_keyword_metrics` labels each item's
+  provider (it can fall back to Google Keyword Planner, Bing or a free
+  estimate) and says why DataForSEO was skipped.
+- Pending standard-queue tasks are collected by a scheduler job every two
+  minutes, only while something is pending.
 
 ## Two things it deliberately will not do
 
@@ -189,7 +242,7 @@ clients can attach, and it is off until you generate a token. After that:
 - a read-only token reaches only the tools that read. The write tools are
   not listed to it and are refused if called by name anyway, so a token
   living in someone's connector settings cannot edit a live website
-- requests are capped per token — 120 a minute, answered with a 429 and a
+- requests are capped per token — 600 a minute (ten a second sustained), answered with a 429 and a
   Retry-After when exceeded. A person asking questions never meets it; a
   loop burning the property's 2,000 daily Search Console inspections does
 - a browser request from another origin is refused, which the transport
@@ -211,8 +264,8 @@ agent to run. Revoke it when you are done, and stop the tunnel.
 dependencies aren't installed. Run `pnpm install` in the repo, then
 `pnpm test:mcp` to see the real error.
 
-**503 from the remote endpoint.** No token has been generated yet —
-Settings → AI connection.
+**503 from the remote endpoint.** No workspace token has been generated yet
+(Settings → AI connection) and the token presented is not a per-user one.
 
 **401 from the remote endpoint.** The token in your client's header does
 not match the one stored here. Generating a new token invalidates the old

@@ -50,6 +50,8 @@ import {
   getAiUsage,
   type McpToolResult,
 } from "./tools";
+import { dataforseoTools } from "@/ext/mcp/dataforseo-tools"; // ext:
+import { mcpContext, runWithMcpContext } from "@/ext/mcp/context"; // ext:
 const clientIdArg = {
   type: "object" as const,
   properties: {
@@ -521,6 +523,7 @@ const TOOLS = [
     },
     handler: (a: { windowDays?: number }) => getAiUsage(a),
   },
+  ...dataforseoTools, // ext: DataForSEO tools
 ];
 
 /**
@@ -665,7 +668,8 @@ export function createMcpServer(source = "unknown", scope: McpScope = "full"): S
 
     let result: McpToolResult;
     try {
-      result = await tool.handler((req.params.arguments ?? {}) as never);
+      // ext: run inside the MCP context (stdio defaults to owner-level legacy)
+      result = await runWithMcpContext(mcpContext(), () => tool.handler((req.params.arguments ?? {}) as never));
     } catch (err) {
       // A thrown error must come back as a readable message, not as a
       // dead connection. The commonest cause is an unmigrated or missing

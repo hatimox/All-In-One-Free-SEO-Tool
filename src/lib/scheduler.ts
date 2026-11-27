@@ -307,6 +307,13 @@ function runners(): Runner[] {
       },
     },
     {
+      // ext: collect finished DataForSEO standard-queue tasks (no-op when none pending)
+      id: "dfs_poller",
+      label: "DataForSEO pending tasks",
+      everyMs: 2 * MINUTE,
+      run: async () => (await import("../ext/mcp/poller")).tickDfsPoller(),
+    },
+    {
       id: "retention_cleanup",
       label: "Data retention cleanup",
       everyMs: 24 * HOUR,

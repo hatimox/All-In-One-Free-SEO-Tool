@@ -95,8 +95,10 @@ function freshness(at: Date | null | undefined): string {
 import { rankProvenance } from "@/lib/serp/sources";
 import { getAiUsageSummary } from "@/lib/ai-usage-summary";
 import { checkMonthlyCap } from "@/lib/ai-usage";
+import { canSeeMcpClient, mcpActionVisible, mcpClientFilter, mcpSeesAll } from "@/ext/mcp/context"; // ext:
 
 async function resolveClient(clientId: number) {
+  if (!canSeeMcpClient(clientId)) return null; // ext: per-user scope
   const [c] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
   return c ?? null;
 }
@@ -115,6 +117,7 @@ export async function listClients(): Promise<McpToolResult> {
       localPath: clients.localPath,
     })
     .from(clients)
+    .where(mcpClientFilter(clients.id)) // ext: per-user scope
     .orderBy(clients.name);
 
   if (rows.length === 0) {
@@ -507,6 +510,7 @@ export async function runAgent(clientId: number): Promise<McpToolResult> {
 export async function revertAgentActionById(
   actionId: number,
 ): Promise<McpToolResult> {
+  if (!(await mcpActionVisible(actionId))) return { ok: false, error: `No action with id ${actionId}.` }; // ext:
   const { revertAction } = await import("../agent/executor");
   const r = await revertAction(actionId);
   if (!r.ok) return { ok: false, error: r.error };
@@ -520,6 +524,7 @@ export async function getRecentAgentRuns(opts: {
   clientId: number;
   limit?: number;
 }): Promise<McpToolResult> {
+  if (!canSeeMcpClient(opts.clientId)) return { ok: false, error: `No client with id ${opts.clientId}.` }; // ext:
   const rows = await db
     .select()
     .from(agentRuns)
@@ -637,7 +642,7 @@ export async function applyProposedFix(opts: {
     .where(eq(agentActions.id, opts.fixId))
     .limit(1);
 
-  if (!row) return { ok: false, error: `No proposed fix with id ${opts.fixId}.` };
+  if (!row || !canSeeMcpClient(row.clientId)) return { ok: false, error: `No proposed fix with id ${opts.fixId}.` }; // ext:
   if (row.status !== "proposed") {
     return {
       ok: false,
@@ -1234,6 +1239,7 @@ export async function getKeywordIdeas(opts: {
   limit?: number;
   refresh?: boolean;
 }): Promise<McpToolResult> {
+  if (!canSeeMcpClient(opts.clientId)) return { ok: false, error: `No client with id ${opts.clientId}.` }; // ext:
   const { getAdsStatus, discoverClientKeywords } = await import("../google-ads");
   if (!(await getAdsStatus()).ready) {
     return { ok: false, error: "Google Ads is not connected (Settings → Google)." };
@@ -1310,7 +1316,7 @@ export async function listTasks(opts: {
 
 export async function getTask(taskId: number): Promise<McpToolResult> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
-  if (!task) return { ok: false, error: `No task with id ${taskId}.` };
+  if (!task || !canSeeMcpClient(task.clientId)) return { ok: false, error: `No task with id ${taskId}.` }; // ext:
   const client = await resolveClient(task.clientId);
   if (!client) {
     return { ok: false, error: `Task ${taskId} belongs to a client that no longer exists.` };
@@ -1356,7 +1362,7 @@ export async function updateTask(opts: {
     return { ok: false, error: `status must be one of: ${TASK_STATUSES.join(", ")}.` };
   }
   const [task] = await db.select().from(tasks).where(eq(tasks.id, opts.taskId)).limit(1);
-  if (!task) return { ok: false, error: `No task with id ${opts.taskId}.` };
+  if (!task || !canSeeMcpClient(task.clientId)) return { ok: false, error: `No task with id ${opts.taskId}.` }; // ext:
   // Same path as the Tasks page: activity log, and the next instance of
   // a recurring task. completedBy stays empty — an MCP call has no
   // signed-in user to credit.
@@ -1425,7 +1431,7 @@ export async function getQueueItem(opts: {
     .from(publishQueue)
     .where(eq(publishQueue.id, opts.itemId))
     .limit(1);
-  if (!item) return { ok: false, error: `No queue item with id ${opts.itemId}.` };
+  if (!item || !canSeeMcpClient(item.clientId)) return { ok: false, error: `No queue item with id ${opts.itemId}.` }; // ext:
   const client = await resolveClient(item.clientId);
   const base = {
     id: item.id,
@@ -1472,6 +1478,7 @@ export async function getQueueItem(opts: {
 export async function getAiUsage(opts: {
   windowDays?: number;
 }): Promise<McpToolResult> {
+  if (!mcpSeesAll()) return { ok: false, error: "AI spend is install-wide and covers every client; it is only available to owner/manager tokens." }; // ext:
   const windowDays = Math.min(Math.max(opts.windowDays ?? 30, 1), 365);
   const s = await getAiUsageSummary(windowDays);
   const usd = (micros: number) => Number((micros / 1_000_000).toFixed(6));
